@@ -107,16 +107,57 @@ void write_info(std::ofstream &out, Info &info) {
     write(out, 1, 7);
 }
 
+// 区間 [a, b) と [c, d) にともに含まれる整数の個数を求める
+int intersect(int a, int b, int c, int d) {
+    if (a > c) return intersect(c, d, a, b);
+    return max(0, min(b - c, d - c));
+}
+
+// 中心から radius 以内にある点の数
+int in_radius_count(int old_index, int new_index, int center, float radius) {
+    if (radius < 1) {
+        if (old_index <= center && center < new_index) return 1;
+        else return 0;
+    }
+    new_index--;
+    int old_x = old_index % WIDTH, old_y = old_index / WIDTH;
+    int new_x = new_index % WIDTH, new_y = new_index / WIDTH;
+    int center_x = center % WIDTH, center_y = center / WIDTH;
+    int ans = 0;
+    for (int y = old_y; y <= new_y; y++) {
+        float x_dif = radius * radius - abs(y - center_y) * abs(y - center_y);
+        if (x_dif < 0) continue;
+        x_dif = sqrt(x_dif);
+        int x_start = center_x - (int)x_dif, x_end = center_x + (int)x_dif + 1;
+        if (old_y == new_y) {
+            ans += intersect(old_x, new_x + 1, x_start, x_end);
+        } else if (y == old_y) {
+            ans += intersect(old_x, WIDTH, x_start, x_end);
+        } else if (y == new_y) {
+            ans += intersect(0, new_x + 1, x_start, x_end);
+        } else {
+            ans += intersect(0, WIDTH, x_start, x_end);
+        }
+    }
+    return ans;
+}
+
 // 指定した地点の雨量を取得する
-float get_value(std::ifstream &in, const Info &info, float latitude, float longitude) {
+float get_value(std::ifstream &in, const Info &info, float latitude, float longitude, float radius) {
     auto pixel = get_pixel(latitude, longitude);
     if (!is_in(get<0>(pixel), get<1>(pixel))) {
         return -2;
     }
     int index = get<0>(pixel) + get<1>(pixel) * WIDTH;
+    int start_index = index - max(0, (int)ceilf(radius) * (WIDTH + 1)) - 1;
+    int end_index = index + max(0, (int)ceilf(radius) * (WIDTH + 1)) + 1;
 
     int in_bytes = info.bits / 8;
     int read_bytes = 0;
+    int cur_index = 0;
+
+    float ans = 0;
+    int count = 0;
 
     Segment seg;
     int seg_len = 0;
@@ -128,11 +169,13 @@ float get_value(std::ifstream &in, const Info &info, float latitude, float longi
         if (new_seg.length) {
             seg_len = 0;
             if (seg.length) {
-                index -= seg.length;
-                if (index < 0) {
-                    if (seg.value == 0) return -1;
-                    else return info.value[seg.value - 1] / pow_int(10, info.E);
+                cur_index += seg.length;
+                if (seg.value != 0 && cur_index > start_index) {
+                    int c = in_radius_count(cur_index - seg.length, cur_index, index, radius);
+                    ans += info.value[seg.value - 1] * c;
+                    count += c;
                 }
+                if (cur_index > end_index) break;
             }
             seg = new_seg;
         } else {
@@ -142,15 +185,17 @@ float get_value(std::ifstream &in, const Info &info, float latitude, float longi
         if (read_bytes >= info.data_length) break;
     }
 
-    if (seg.length) {
-        index -= seg.length;
-        if (index < 0) {
-            if (seg.value == 0) return -1;
-            else return info.value[seg.value - 1];
+    if (cur_index <= end_index && seg.length) {
+        cur_index += seg.length;
+        if (seg.value != 0 && cur_index > start_index) {
+            int c = in_radius_count(cur_index - seg.length, cur_index, index, radius);
+            ans += info.value[seg.value - 1] * c;
+            count += c;
         }
     }
 
-    return -2;
+    if (count == 0) return -1;
+    return ans / count / pow_int(10, info.E);
 }
 
 /// @brief データの値を変換する

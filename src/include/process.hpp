@@ -24,7 +24,7 @@ struct Info {
 
 void read_info(std::ifstream &in, Info &info);
 void write_info(std::ofstream &out, Info &info);
-float get_value(std::ifstream &in, const Info &info, float latitude, float longitude);
+float get_value(std::ifstream &in, const Info &info, float latitude, float longitude, float radius);
 void convert(std::ifstream &in, std::ofstream &out, const Info &in_info, Info &out_info, const std::function<int(int)> &f);
 void merge_search(std::vector<std::ifstream *> &in, const std::vector<Info> &in_info, Info &out_info, const std::function<int(int, int)> &f);
 void merge(std::vector<std::ifstream *> &in, std::ofstream &out, const std::vector<Info> &in_info, Info &out_info, const std::function<int(int, int)> &f);

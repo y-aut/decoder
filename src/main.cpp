@@ -11,8 +11,9 @@ using namespace std;
 void show_usage() {
     cout << R"(*** USAGE ***
 
-value FILENAME LATITUDE LONGITUDE
+value [-r RADIUS] FILENAME LATITUDE LONGITUDE
     指定した地点の雨量を取得する
+    半径 (px) を指定したときは，中心からの距離がそれ以下の点について平均をとる
 
 convert [-t THRESHOLD] [-o OUT_FILE] FILENAME
     ファイルを変換する
@@ -27,16 +28,35 @@ image [-o OUT_FILE] [-l LATITUDE LONGITUDE] FILENAME
 }
 
 int value_cmd(queue<string> &args) {
-    if (args.size() != 3) {
-        show_usage();
-        return 1;
+    string in_file;
+    float latitude = 0, longitude = 0, radius = 0;
+
+    // コマンドライン引数をパース
+    while (!args.empty()) {
+        if (args.front() == "-r") {
+            args.pop();
+            if (args.empty()) {
+                show_usage();
+                return 1;
+            }
+            radius = stof(args.front());
+        } else {
+            if (!in_file.empty() || args.size() < 3) {
+                show_usage();
+                return 1;
+            }
+            in_file = args.front();
+            args.pop();
+            latitude = stof(args.front());
+            args.pop();
+            longitude = stof(args.front());
+        }
+        args.pop();
     }
 
-    string in_file = args.front();
-    args.pop();
-    float latitude = stof(args.front());
-    args.pop();
-    float longitude = stof(args.front());
+    if (in_file.empty()) {
+        throw "入力ファイルが指定されていません";
+    }
 
     ifstream in(in_file, ios::in | ios::binary);
     if (!in) {
@@ -47,7 +67,7 @@ int value_cmd(queue<string> &args) {
     Info info;
     read_info(in, info);
 
-    cout << get_value(in, info, latitude, longitude) << endl;
+    cout << get_value(in, info, latitude, longitude, radius) << endl;
 
     return 0;
 }
