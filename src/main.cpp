@@ -21,8 +21,9 @@ convert [-t THRESHOLD] [-o OUT_FILE] FILENAME
 merge [-o OUT_FILE] FILENAME1 FILENAME2
     ファイルをマージする
 
-image [-o OUT_FILE] [-l LATITUDE LONGITUDE] FILENAME
+image [-o OUT_FILE] [-l LATITUDE LONGITUDE] [-c] FILENAME
     ビットマップを作成する
+    -c を指定すると，降水量に基づいた色分けを行う
 )"
          << endl;
 }
@@ -55,7 +56,8 @@ int value_cmd(queue<string> &args) {
     }
 
     if (in_file.empty()) {
-        throw "入力ファイルが指定されていません";
+        cout << "入力ファイルが指定されていません" << endl;
+        return 1;
     }
 
     ifstream in(in_file, ios::in | ios::binary);
@@ -103,7 +105,8 @@ int convert_cmd(queue<string> &args) {
     }
 
     if (in_file.empty()) {
-        throw "入力ファイルが指定されていません";
+        cout << "入力ファイルが指定されていません" << endl;
+        return 1;
     }
 
     ifstream in(in_file, ios::in | ios::binary);
@@ -131,7 +134,7 @@ int convert_cmd(queue<string> &args) {
     out_info.V = 2;
     out_info.M = 2;
     out_info.E = 0;
-    out_info.value = {1, 2};
+    out_info.value_is_level_1 = true;
     write_info(out, out_info);
 
     convert(in, out, in_info, out_info, f);
@@ -200,6 +203,7 @@ int merge_cmd(queue<string> &args) {
     }
 
     auto f = [&](int lv1, int lv2) {
+        if (lv1 == 0 || lv2 == 0) return lv1 + lv2;
         return max(0, lv1 + lv2 - 1);
     };
 
@@ -229,6 +233,7 @@ int merge_cmd(queue<string> &args) {
 int image_cmd(queue<string> &args) {
     string in_file, out_file = "out.bmp";
     float latitude = 0, longitude = 0;
+    bool rainfall_color = false;
 
     // コマンドライン引数をパース
     while (!args.empty()) {
@@ -248,6 +253,8 @@ int image_cmd(queue<string> &args) {
             latitude = stof(args.front());
             args.pop();
             longitude = stof(args.front());
+        } else if (args.front() == "-c") {
+            rainfall_color = true;
         } else {
             if (!in_file.empty()) {
                 show_usage();
@@ -272,37 +279,30 @@ int image_cmd(queue<string> &args) {
     Info info;
     read_info(in, info);
 
-    // グラデーションで色付け
-    auto f = [&](int lv) {
-        if (lv == 0) return Color("C0C0C0");
-        if (lv == 1) return Color("FFFFFF");
-        float r = info.V == 2 ? 0 : (float)(lv - 2) / (info.V - 2);
-        return Color::from_hsl(240 * (1 - r), 100, 50);
-    };
-
-    // function<Color(int)> f;
-    // if (info.E == 1) {
-    //     // 降水量レベルを色に変換する
-    //     int scale = pow_int(10, info.E);
-    //     f = [&](int lv) {
-    //         if (lv == 0) return Color("C0C0C0");
-    //         int value = info.value[lv - 1];
-    //         if (value == 0) return Color("FFFFFF");
-    //         else if (value < scale) return Color("0000FF");
-    //         else if (value < scale * 10) return Color("00FFFF");
-    //         else if (value < scale * 20) return Color("FFFF00");
-    //         else if (value < scale * 40) return Color("00FF00");
-    //         else if (value < scale * 60) return Color("FF8000");
-    //         else return Color("FF0000");
-    //     };
-    // } else {
-    //     f = [&](int lv) {
-    //         if (lv == 0) return Color("C0C0C0");
-    //         else if (lv == 1) return Color("FFFFFF");
-    //         else if (lv == 2) return Color("0000FF");
-    //         else return Color("00FFFF");
-    //     };
-    // }
+    function<Color(int)> f;
+    if (rainfall_color) {
+        // 降水量レベルを色に変換する
+        int scale = pow_int(10, info.E);
+        f = [&](int lv) {
+            if (lv == 0) return Color("C0C0C0");
+            int value = info.get_value(lv);
+            if (value == 0) return Color("FFFFFF");
+            else if (value < scale) return Color("0000FF");
+            else if (value < scale * 10) return Color("00FFFF");
+            else if (value < scale * 20) return Color("FFFF00");
+            else if (value < scale * 40) return Color("00FF00");
+            else if (value < scale * 60) return Color("FF8000");
+            else return Color("FF0000");
+        };
+    } else {
+        // グラデーションで色付け
+        f = [&](int lv) {
+            if (lv == 0) return Color("C0C0C0");
+            if (lv == 1) return Color("FFFFFF");
+            float r = info.V == 2 ? 0 : (float)(lv - 2) / (info.V - 2);
+            return Color::from_hsl(240 * (1 - r), 100, 50);
+        };
+    }
 
     create_image(in, out_file, info, f, latitude, longitude);
     in.close();

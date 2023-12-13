@@ -1,5 +1,6 @@
 #pragma once
 #include "color.hpp"
+#include <assert.h>
 #include <fstream>
 #include <functional>
 #include <string>
@@ -20,6 +21,14 @@ struct Info {
     std::vector<int> value;
     // データのバイト数
     int data_length = 0;
+    // value == level - 1
+    bool value_is_level_1 = false;
+
+    int get_value(int level) const {
+        assert(0 < level && level <= M);
+        if (value_is_level_1) return level - 1;
+        else return value[level - 1];
+    }
 };
 
 void read_info(std::ifstream &in, Info &info);

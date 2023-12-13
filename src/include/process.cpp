@@ -80,6 +80,18 @@ void read_info(std::ifstream &in, Info &info) {
         } else if (section == 7) {
             info.data_length = length - 5;
             break;
+        } else if (section == 15) {
+            // 追加セクション
+            info.V = read(in, 4);
+            info.M = read(in, 4);
+            info.E = read(in, 4);
+            info.value_is_level_1 = (read(in, 1) == 1);
+            if (!info.value_is_level_1) {
+                info.value.clear();
+                for (int m = 0; m < info.M; m++) {
+                    info.value.push_back(read(in, 4));
+                }
+            }
         } else {
             in.seekg(length - 5, ios_base::cur);
         }
@@ -91,16 +103,25 @@ void write_info(std::ofstream &out, Info &info) {
     char zero[16] = {};
     out.write(zero, 16);
     // 第 5 節
-    write(out, 4, 17 + 2 * info.M);
+    write(out, 4, 17);
     write(out, 1, 5);
     write(out, 4, info.point_count);
     write(out, 2, 0);
     write(out, 1, info.bits);
-    write(out, 2, info.V);
-    write(out, 2, info.M);
-    write(out, 1, info.E);
-    for (int m = 0; m < info.M; m++) {
-        write(out, 2, info.value[m]);
+    write(out, 2, 0); // V
+    write(out, 2, 0); // M
+    write(out, 1, 0); // E
+    // 第 15 節
+    write(out, 4, info.value_is_level_1 ? 18 : 18 + 4 * info.M);
+    write(out, 1, 15);
+    write(out, 4, info.V);
+    write(out, 4, info.M);
+    write(out, 4, info.E);
+    write(out, 1, info.value_is_level_1 ? 1 : 0);
+    if (!info.value_is_level_1) {
+        for (int m = 0; m < info.M; m++) {
+            write(out, 4, info.value[m]);
+        }
     }
     // 第 7 節
     write(out, 4, info.data_length + 5);
@@ -172,7 +193,7 @@ float get_value(std::ifstream &in, const Info &info, float latitude, float longi
                 cur_index += seg.length;
                 if (seg.value != 0 && cur_index > start_index) {
                     int c = in_radius_count(cur_index - seg.length, cur_index, index, radius);
-                    ans += info.value[seg.value - 1] * c;
+                    ans += info.get_value(seg.value) * c;
                     count += c;
                 }
                 if (cur_index > end_index) break;
@@ -189,7 +210,7 @@ float get_value(std::ifstream &in, const Info &info, float latitude, float longi
         cur_index += seg.length;
         if (seg.value != 0 && cur_index > start_index) {
             int c = in_radius_count(cur_index - seg.length, cur_index, index, radius);
-            ans += info.value[seg.value - 1] * c;
+            ans += info.get_value(seg.value) * c;
             count += c;
         }
     }
@@ -319,9 +340,7 @@ void merge_search(std::vector<std::ifstream *> &in, const std::vector<Info> &in_
             break;
         }
     }
-    for (int m = 1; m <= value_max; m++) {
-        out_info.value.push_back(m);
-    }
+    out_info.value_is_level_1 = true;
 }
 
 void merge(std::vector<std::ifstream *> &in, std::ofstream &out, const std::vector<Info> &in_info, Info &out_info, const std::function<int(int, int)> &f) {
