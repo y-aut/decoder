@@ -1,18 +1,6 @@
 #pragma once
 #include "color.hpp"
 #include "util.hpp"
-#include <tuple>
-
-// 画像内部の点かどうかを判定する
-inline bool is_in(int x, int y) {
-    return 0 <= x && x < WIDTH && 0 <= y && y < HEIGHT;
-}
-
-// 緯度・経度に対応するピクセルの座標を取得する
-inline std::tuple<int, int> get_pixel(float latitude, float longitude) {
-    return {(int)((longitude - FIRST_LONGITUDE) / DX),
-            (int)((latitude - FIRST_LATITUDE) / DY)};
-}
 
 // 画像の特定のピクセルに色を設定する
 void set_color(unsigned char img[], int x, int y, const Color &c);

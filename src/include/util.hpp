@@ -1,4 +1,5 @@
 #pragma once
+#include <math.h>
 
 #define CSI constexpr static int
 #define CSF constexpr static float
@@ -15,6 +16,22 @@ CSF LAST_LONGITUDE = 149.993750;
 // 格子点間の緯度・経度差
 CSF DX = (LAST_LONGITUDE - FIRST_LONGITUDE) / (WIDTH - 1);
 CSF DY = (LAST_LATITUDE - FIRST_LATITUDE) / (HEIGHT - 1);
+
+// 画像内部の点かどうかを判定する
+inline bool is_in(int x, int y) {
+    return 0 <= x && x < WIDTH && 0 <= y && y < HEIGHT;
+}
+
+// 緯度・経度に対応するピクセルの座標を取得する
+inline std::pair<int, int> get_pixel(float latitude, float longitude) {
+    return {(int)round((longitude - FIRST_LONGITUDE) / DX),
+            (int)round((latitude - FIRST_LATITUDE) / DY)};
+}
+
+// ピクセルの座標に対応する緯度・経度を取得する
+inline std::pair<float, float> get_coord(int x, int y) {
+    return {FIRST_LATITUDE + y * DY, FIRST_LONGITUDE + x * DX};
+}
 
 inline int pow_int(int a, int b) {
     int res = 1;

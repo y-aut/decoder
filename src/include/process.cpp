@@ -3,7 +3,9 @@
 #include "map.hpp"
 #include "segment.hpp"
 #include "util.hpp"
+#include <algorithm>
 #include <math.h>
+#include <queue>
 #include <vector>
 
 #define IS_LITTLE_ENDIAN
@@ -219,6 +221,110 @@ float get_value(std::ifstream &in, const Info &info, float latitude, float longi
     return ans / count / pow_int(10, info.E);
 }
 
+// ランキングを表示する
+std::vector<std::pair<int, float>> get_ranking(std::ifstream &in, const Info &info, int count, float radius, float distance) {
+    // 全ての点の値を計算する
+    vector<int> values(WIDTH * HEIGHT, -1);
+
+    int in_bytes = info.bits / 8;
+    int read_bytes = 0;
+    int index = 0;
+
+    Segment seg;
+    int seg_len = 0;
+    while (!in.eof()) {
+        int val = read(in, in_bytes);
+        read_bytes += in_bytes;
+
+        auto new_seg = decode(info, seg, seg_len, val);
+        if (new_seg.length) {
+            seg_len = 0;
+            if (seg.length) {
+                if (seg.value) {
+                    int v = info.get_value(seg.value);
+                    for (int i = 0; i < seg.length; i++, index++) {
+                        values[index] = v;
+                    }
+                } else {
+                    index += seg.length;
+                }
+            }
+            seg = new_seg;
+        } else {
+            seg_len++;
+        }
+
+        if (read_bytes >= info.data_length) break;
+    }
+
+    if (seg.length) {
+        if (seg.value) {
+            int v = info.get_value(seg.value);
+            for (int i = 0; i < seg.length; i++, index++) {
+                values[index] = v;
+            }
+        } else {
+            index += seg.length;
+        }
+    }
+
+    // 半径 radius 以内の全ての点について，オフセットを求める
+    vector<pair<int, int>> offset;
+    int r = (int)ceilf(radius);
+    for (int x = -r; x <= r; x++) {
+        for (int y = -r; y <= r; y++) {
+            if (x * x + y * y <= radius * radius) {
+                offset.emplace_back(x, y);
+            }
+        }
+    }
+
+    if (offset.empty()) {
+        offset.emplace_back(0, 0);
+    }
+
+    // 周囲の点との平均をとる
+    vector<pair<int, float>> average;
+    for (int index = 0; index < WIDTH * HEIGHT; index++) {
+        if (values[index] == -1) continue;
+        int x = index % WIDTH, y = index / WIDTH;
+        int sum = 0, c = 0;
+        for (auto d : offset) {
+            if (!is_in(x + get<0>(d), y + get<1>(d))) continue;
+            auto v = values[index + get<0>(d) + get<1>(d) * WIDTH];
+            if (v == -1) continue;
+            sum += v;
+            c++;
+        }
+        average.emplace_back(index, (float)sum / c);
+    }
+    sort(average.begin(), average.end(), [](pair<int, float> a, pair<int, float> b) {
+        if (a.second == b.second) return a.first < b.first;
+        else return a.second > b.second;
+    });
+
+    vector<pair<int, float>> result;
+
+    // 順に取り出す
+    for (auto item : average) {
+        // result にある点から距離 distance 以内にないか
+        int x = item.first % WIDTH, y = item.first / WIDTH;
+        bool exist = false;
+        for (auto r : result) {
+            int rx = r.first % WIDTH, ry = r.first / WIDTH;
+            if ((x - rx) * (x - rx) + (y - ry) * (y - ry) <= distance * distance) {
+                exist = true;
+                break;
+            }
+        }
+        if (exist) continue;
+        result.emplace_back(item.first, item.second / pow_int(10, info.E));
+        if ((int)result.size() >= count) break;
+    }
+
+    return result;
+}
+
 /// @brief データの値を変換する
 /// @param f レベルの値から変換する関数
 void convert(std::ifstream &in, std::ofstream &out, const Info &in_info, Info &out_info, const std::function<int(int)> &f) {
@@ -425,7 +531,7 @@ void merge(std::vector<std::ifstream *> &in, std::ofstream &out, const std::vect
     write(out, 4, 0x37373737);
 }
 
-void create_image(std::ifstream &in, std::string out_file, const Info &info, const std::function<Color(int)> &color, const std::vector<std::tuple<float, float>> &pos) {
+void create_image(std::ifstream &in, std::string out_file, const Info &info, const std::function<Color(int)> &color, const std::vector<std::pair<float, float>> &pos) {
     auto img = new unsigned char[WIDTH * HEIGHT * 3];
     int index = 0;
 
@@ -468,7 +574,7 @@ void create_image(std::ifstream &in, std::string out_file, const Info &info, con
 
     draw_coastline(img);
     for (auto p : pos) {
-        draw_location(img, get<0>(p), get<1>(p));
+        draw_location(img, p.first, p.second);
     }
 
     save_bitmap(img, out_file, WIDTH, HEIGHT);

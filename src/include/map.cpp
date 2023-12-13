@@ -39,8 +39,8 @@ void draw_location(unsigned char img[], float latitude, float longitude) {
 
     auto pos = get_pixel(latitude, longitude);
     for (float theta = 0; theta < 2 * M_PI; theta += 0.1) {
-        int x = get<0>(pos) + (int)(RADIUS * cosf(theta));
-        int y = get<1>(pos) + (int)(RADIUS * sinf(theta));
+        int x = pos.first + (int)(RADIUS * cosf(theta));
+        int y = pos.second + (int)(RADIUS * sinf(theta));
         for (int x_ = x; x_ < x + 2; x_++) {
             for (int y_ = y; y_ < y + 2; y_++) {
                 set_color(img, x_, y_, c);

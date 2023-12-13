@@ -2,6 +2,7 @@
 #include "process.hpp"
 #include "util.hpp"
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <queue>
 #include <string>
@@ -14,6 +15,10 @@ void show_usage() {
 value [-r RADIUS] FILENAME LATITUDE LONGITUDE
     指定した地点の雨量を取得する
     半径 (px) を指定したときは，中心からの距離がそれ以下の点について平均をとる
+
+rank [-n COUNT] [-r RADIUS] [-d DISTANCE] FILENAME
+    値が高い地点を順に指定した数だけ出力する
+    指定した距離 (px) 以内の 2 点はランキング中に含まれない
 
 convert [-t THRESHOLD] [-o OUT_FILE] FILENAME
     ファイルを変換する
@@ -71,6 +76,67 @@ int value_cmd(queue<string> &args) {
     read_info(in, info);
 
     cout << get_value(in, info, latitude, longitude, radius) << endl;
+
+    return 0;
+}
+
+int rank_cmd(queue<string> &args) {
+    string in_file;
+    int count = 5;
+    float radius = 0, distance = 0;
+
+    // コマンドライン引数をパース
+    while (!args.empty()) {
+        if (args.front() == "-c") {
+            args.pop();
+            if (args.empty()) {
+                show_usage();
+                return 1;
+            }
+            count = stoi(args.front());
+        } else if (args.front() == "-r") {
+            args.pop();
+            if (args.empty()) {
+                show_usage();
+                return 1;
+            }
+            radius = stof(args.front());
+        } else if (args.front() == "-d") {
+            args.pop();
+            if (args.empty()) {
+                show_usage();
+                return 1;
+            }
+            distance = stof(args.front());
+        } else {
+            if (!in_file.empty()) {
+                show_usage();
+                return 1;
+            }
+            in_file = args.front();
+        }
+        args.pop();
+    }
+
+    if (in_file.empty()) {
+        cout << "入力ファイルが指定されていません" << endl;
+        return 1;
+    }
+
+    ifstream in(in_file, ios::in | ios::binary);
+    if (!in) {
+        cout << "入力ファイルが開けませんでした: " << in_file << endl;
+        return 1;
+    }
+
+    Info info;
+    read_info(in, info);
+
+    auto ranking = get_ranking(in, info, count, radius, distance);
+    for (auto item : ranking) {
+        auto coord = get_coord(item.first % WIDTH, item.first / WIDTH);
+        cout << coord.first << " " << coord.second << " " << item.second << endl;
+    }
 
     return 0;
 }
@@ -233,7 +299,7 @@ int merge_cmd(queue<string> &args) {
 
 int image_cmd(queue<string> &args) {
     string in_file, out_file = "out.bmp";
-    vector<tuple<float, float>> pos;
+    vector<pair<float, float>> pos;
     bool rainfall_color = false;
 
     // コマンドライン引数をパース
@@ -315,6 +381,8 @@ int image_cmd(queue<string> &args) {
 }
 
 int main(int argc, char *argv[]) {
+    cout << setprecision(10);
+
     queue<string> args;
     for (int i = 1; i < argc; i++) {
         args.push(argv[i]);
@@ -323,6 +391,9 @@ int main(int argc, char *argv[]) {
     if (args.front() == "value") {
         args.pop();
         return value_cmd(args);
+    } else if (args.front() == "rank") {
+        args.pop();
+        return rank_cmd(args);
     } else if (args.front() == "convert") {
         args.pop();
         return convert_cmd(args);
