@@ -425,7 +425,7 @@ void merge(std::vector<std::ifstream *> &in, std::ofstream &out, const std::vect
     write(out, 4, 0x37373737);
 }
 
-void create_image(std::ifstream &in, std::string out_file, const Info &info, const std::function<Color(int)> &color, float latitude, float longitude) {
+void create_image(std::ifstream &in, std::string out_file, const Info &info, const std::function<Color(int)> &color, const std::vector<std::tuple<float, float>> &pos) {
     auto img = new unsigned char[WIDTH * HEIGHT * 3];
     int index = 0;
 
@@ -467,8 +467,8 @@ void create_image(std::ifstream &in, std::string out_file, const Info &info, con
     }
 
     draw_coastline(img);
-    if (latitude != 0) {
-        draw_location(img, latitude, longitude);
+    for (auto p : pos) {
+        draw_location(img, get<0>(p), get<1>(p));
     }
 
     save_bitmap(img, out_file, WIDTH, HEIGHT);

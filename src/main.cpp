@@ -23,6 +23,7 @@ merge [-o OUT_FILE] FILENAME1 FILENAME2
 
 image [-o OUT_FILE] [-l LATITUDE LONGITUDE] [-c] FILENAME
     ビットマップを作成する
+    -l を指定すると，指定した地点に印をつける．複数指定可能
     -c を指定すると，降水量に基づいた色分けを行う
 )"
          << endl;
@@ -232,7 +233,7 @@ int merge_cmd(queue<string> &args) {
 
 int image_cmd(queue<string> &args) {
     string in_file, out_file = "out.bmp";
-    float latitude = 0, longitude = 0;
+    vector<tuple<float, float>> pos;
     bool rainfall_color = false;
 
     // コマンドライン引数をパース
@@ -250,9 +251,10 @@ int image_cmd(queue<string> &args) {
                 show_usage();
                 return 1;
             }
-            latitude = stof(args.front());
+            float lat = stof(args.front());
             args.pop();
-            longitude = stof(args.front());
+            float lon = stof(args.front());
+            pos.emplace_back(lat, lon);
         } else if (args.front() == "-c") {
             rainfall_color = true;
         } else {
@@ -304,7 +306,7 @@ int image_cmd(queue<string> &args) {
         };
     }
 
-    create_image(in, out_file, info, f, latitude, longitude);
+    create_image(in, out_file, info, f, pos);
     in.close();
 
     cout << "画像ファイルを出力しました: " << out_file << endl;
