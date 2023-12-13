@@ -1,12 +1,11 @@
 #include "map.hpp"
-#include "color.hpp"
 #include <fstream>
 #include <iostream>
 #include <math.h>
 
 using namespace std;
 
-void set_pixel(unsigned char img[], int x, int y, const Color &c) {
+void set_color(unsigned char img[], int x, int y, const Color &c) {
     if (!is_in(x, y)) return;
     int index = (x + (HEIGHT - y - 1) * WIDTH) * 3;
     img[index] = c.blue;
@@ -29,7 +28,7 @@ void draw_coastline(unsigned char img[]) {
         auto pos = line.find(',');
         int x = stoi(line.substr(0, pos));
         int y = stoi(line.substr(pos + 1));
-        set_pixel(img, x, y, c);
+        set_color(img, x, y, c);
     }
 }
 
@@ -44,7 +43,7 @@ void draw_location(unsigned char img[], float latitude, float longitude) {
         int y = get<1>(pos) + (int)(RADIUS * sinf(theta));
         for (int x_ = x; x_ < x + 2; x_++) {
             for (int y_ = y; y_ < y + 2; y_++) {
-                set_pixel(img, x_, y_, c);
+                set_color(img, x_, y_, c);
             }
         }
     }

@@ -427,7 +427,7 @@ void merge(std::vector<std::ifstream *> &in, std::ofstream &out, const std::vect
 
 void create_image(std::ifstream &in, std::string out_file, const Info &info, const std::function<Color(int)> &color, float latitude, float longitude) {
     auto img = new unsigned char[WIDTH * HEIGHT * 3];
-    int img_x = 0, img_y = HEIGHT - 1;
+    int index = 0;
 
     int in_bytes = info.bits / 8;
     int read_bytes = 0;
@@ -445,14 +445,8 @@ void create_image(std::ifstream &in, std::string out_file, const Info &info, con
                 // seg を書き出す
                 auto c = color(seg.value);
                 for (int i = 0; i < seg.length; i++) {
-                    int index = (img_x + img_y * WIDTH) * 3;
-                    img[index] = c.blue;
-                    img[index + 1] = c.green;
-                    img[index + 2] = c.red;
-                    if (++img_x == WIDTH) {
-                        img_x = 0;
-                        img_y--;
-                    }
+                    set_color(img, index % WIDTH, index / WIDTH, c);
+                    index++;
                 }
             }
             seg = new_seg;
@@ -467,14 +461,8 @@ void create_image(std::ifstream &in, std::string out_file, const Info &info, con
         // seg を書き出す
         auto c = color(seg.value);
         for (int i = 0; i < seg.length; i++) {
-            int index = (img_x + img_y * WIDTH) * 3;
-            img[index] = c.blue;
-            img[index + 1] = c.green;
-            img[index + 2] = c.red;
-            if (++img_x == WIDTH) {
-                img_x = 0;
-                img_y--;
-            }
+            set_color(img, index % WIDTH, index / WIDTH, c);
+            index++;
         }
     }
 
