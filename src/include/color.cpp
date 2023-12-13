@@ -29,7 +29,7 @@ Color Color::from_hsl(float h, float s, float l) {
     } else if (h < 180) {
         return Color(min, max, min + (max - min) * (h - 120) / 60);
     } else if (h < 240) {
-        return Color(min, min + (max - min) * (h - 240) / 60, max);
+        return Color(min, min + (max - min) * (240 - h) / 60, max);
     } else if (h < 300) {
         return Color(min + (max - min) * (h - 240) / 60, min, max);
     } else {
