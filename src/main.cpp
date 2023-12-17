@@ -16,6 +16,10 @@ value [-r RADIUS] FILENAME LATITUDE LONGITUDE
     指定した地点の雨量を取得する
     半径 (px) を指定したときは，中心からの距離がそれ以下の点について平均をとる
 
+values [-o OUT_FILE] FILENAME COORDINATES_FILE
+    ファイルで指定した地点の雨量をすべて取得する
+    COORDINATES_FILE には，行ごとに緯度・経度をスペース区切りで記入したファイルを指定する
+
 rank [-n COUNT] [-r RADIUS] [-d DISTANCE] FILENAME
     値が高い地点を順に指定した数だけ出力する
     指定した距離 (px) 以内の 2 点はランキング中に含まれない
@@ -76,6 +80,56 @@ int value_cmd(queue<string> &args) {
     read_info(in, info);
 
     cout << get_value(in, info, latitude, longitude, radius) << endl;
+
+    return 0;
+}
+
+int values_cmd(queue<string> &args) {
+    string in_file, coord_file, out_file = "out.txt";
+
+    // コマンドライン引数をパース
+    while (!args.empty()) {
+        if (args.front() == "-o") {
+            args.pop();
+            if (args.empty()) {
+                show_usage();
+                return 1;
+            }
+            out_file = args.front();
+        } else {
+            if (!in_file.empty() || args.size() < 2) {
+                show_usage();
+                return 1;
+            }
+            in_file = args.front();
+            args.pop();
+            coord_file = args.front();
+        }
+        args.pop();
+    }
+
+    ifstream in(in_file, ios::in | ios::binary);
+    if (!in) {
+        cout << "入力ファイルが開けませんでした: " << in_file << endl;
+        return 1;
+    }
+
+    ifstream coord(coord_file, ios::in);
+    if (!coord) {
+        cout << "座標ファイルが開けませんでした: " << coord_file << endl;
+        return 1;
+    }
+
+    ofstream out(out_file, ios::out | ios::trunc);
+    if (!out) {
+        cout << "出力ファイルが開けませんでした: " << out_file << endl;
+        return 1;
+    }
+
+    Info info;
+    read_info(in, info);
+
+    get_values(in, coord, out, info);
 
     return 0;
 }
@@ -391,6 +445,9 @@ int main(int argc, char *argv[]) {
     if (args.front() == "value") {
         args.pop();
         return value_cmd(args);
+    } else if (args.front() == "values") {
+        args.pop();
+        return values_cmd(args);
     } else if (args.front() == "rank") {
         args.pop();
         return rank_cmd(args);

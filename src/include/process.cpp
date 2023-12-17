@@ -6,6 +6,8 @@
 #include <algorithm>
 #include <math.h>
 #include <queue>
+#include <sstream>
+#include <unordered_map>
 #include <vector>
 
 #define IS_LITTLE_ENDIAN
@@ -168,10 +170,10 @@ int in_radius_count(int old_index, int new_index, int center, float radius) {
 // 指定した地点の雨量を取得する
 float get_value(std::ifstream &in, const Info &info, float latitude, float longitude, float radius) {
     auto pixel = get_pixel(latitude, longitude);
-    if (!is_in(get<0>(pixel), get<1>(pixel))) {
+    if (!is_in(pixel.first, pixel.second)) {
         return -2;
     }
-    int index = get<0>(pixel) + get<1>(pixel) * WIDTH;
+    int index = pixel.first + pixel.second * WIDTH;
     int start_index = index - max(0, (int)ceilf(radius) * (WIDTH + 1)) - 1;
     int end_index = index + max(0, (int)ceilf(radius) * (WIDTH + 1)) + 1;
 
@@ -219,6 +221,76 @@ float get_value(std::ifstream &in, const Info &info, float latitude, float longi
 
     if (count == 0) return -1;
     return ans / count / pow_int(10, info.E);
+}
+
+// 指定した複数地点の雨量を取得する
+void get_values(std::ifstream &in, std::ifstream &coord, std::ofstream &out, const Info &info) {
+    // 座標のリストを取得
+    vector<int> indices;
+    string line;
+    float lat, lon;
+    while (getline(coord, line)) {
+        if (line.empty()) continue;
+        stringstream ss(line);
+        ss >> lat >> lon;
+        auto pixel = get_pixel(lat, lon);
+        if (!is_in(pixel.first, pixel.second)) {
+            indices.push_back(-1);
+        } else {
+            indices.push_back(pixel.first + pixel.second * WIDTH);
+        }
+    }
+
+    if (indices.empty()) return;
+
+    auto indices_set = indices;
+    sort(indices_set.begin(), indices_set.end());
+    indices_set.erase(unique(indices_set.begin(), indices_set.end()), indices_set.end());
+    size_t cur_set_ind = indices_set[0] == -1 ? 1 : 0;
+
+    unordered_map<int, float> res;
+
+    int in_bytes = info.bits / 8;
+    int read_bytes = 0;
+    int cur_index = 0;
+
+    Segment seg;
+    int seg_len = 0;
+    while (!in.eof()) {
+        if (cur_set_ind >= indices_set.size()) break;
+
+        int val = read(in, in_bytes);
+        read_bytes += in_bytes;
+
+        auto new_seg = decode(info, seg, seg_len, val);
+        if (new_seg.length) {
+            seg_len = 0;
+            if (seg.length) {
+                cur_index += seg.length;
+                while (cur_index > indices_set[cur_set_ind]) {
+                    res[indices_set[cur_set_ind]] = seg.value == 0 ? -1 : (info.get_value(seg.value) / pow_int(10, info.E));
+                    if (++cur_set_ind >= indices_set.size()) break;
+                }
+            }
+            seg = new_seg;
+        } else {
+            seg_len++;
+        }
+
+        if (read_bytes >= info.data_length) break;
+    }
+
+    if (cur_set_ind < indices_set.size() && seg.length) {
+        cur_index += seg.length;
+        while (cur_index > indices_set[cur_set_ind]) {
+            res[indices_set[cur_set_ind]] = seg.value == 0 ? -1 : (info.get_value(seg.value) / pow_int(10, info.E));
+            if (++cur_set_ind >= indices_set.size()) break;
+        }
+    }
+
+    for (auto index : indices) {
+        out << (res.count(index) ? res[index] : -2) << '\n';
+    }
 }
 
 // ランキングを表示する
@@ -290,8 +362,8 @@ std::vector<std::pair<int, float>> get_ranking(std::ifstream &in, const Info &in
         int x = index % WIDTH, y = index / WIDTH;
         int sum = 0, c = 0;
         for (auto d : offset) {
-            if (!is_in(x + get<0>(d), y + get<1>(d))) continue;
-            auto v = values[index + get<0>(d) + get<1>(d) * WIDTH];
+            if (!is_in(x + d.first, y + d.second)) continue;
+            auto v = values[index + d.first + d.second * WIDTH];
             if (v == -1) continue;
             sum += v;
             c++;
