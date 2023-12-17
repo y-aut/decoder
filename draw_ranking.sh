@@ -3,7 +3,9 @@
 # args: filename, params...
 
 # rank の結果を image に渡して実行
-res=($(./release.exe rank "$@"))
+res=$(./release.exe rank "$@")
+echo "$res"
+res=($res)
 size=${#res[*]}
 param=""
 for ((i = 0; i < $size; i += 3)); do
