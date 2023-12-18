@@ -141,7 +141,7 @@ int rank_cmd(queue<string> &args) {
 
     // コマンドライン引数をパース
     while (!args.empty()) {
-        if (args.front() == "-c") {
+        if (args.front() == "-n") {
             args.pop();
             if (args.empty()) {
                 show_usage();
