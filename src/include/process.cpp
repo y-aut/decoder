@@ -4,6 +4,7 @@
 #include "segment.hpp"
 #include "util.hpp"
 #include <algorithm>
+#include <iostream>
 #include <math.h>
 #include <queue>
 #include <sstream>
@@ -86,9 +87,24 @@ void read_info(std::ifstream &in, Info &info) {
             break;
         } else if (section == 15) {
             // 追加セクション
-            info.V = read(in, 4);
+            uint version = read(in, 4);
+            if (version >> 24 != 0xff) {
+                info.V = version;
+                version = 1;
+            } else {
+                version ^= 0xff << 24;
+            }
+            if (version != LATEST_VERSION) {
+                cout << "このファイルは最新バージョンではありません．バージョン番号: " << version << endl;
+            }
+            if (version >= 2) {
+                info.V = read(in, 4);
+            }
             info.M = read(in, 4);
             info.E = read(in, 4);
+            if (version >= 2) {
+                info.count = read(in, 4);
+            }
             info.value_is_level_1 = (read(in, 1) == 1);
             if (!info.value_is_level_1) {
                 info.value.clear();
@@ -116,11 +132,13 @@ void write_info(std::ofstream &out, Info &info) {
     write(out, 2, 0); // M
     write(out, 1, 0); // E
     // 第 15 節
-    write(out, 4, info.value_is_level_1 ? 18 : 18 + 4 * info.M);
+    write(out, 4, info.value_is_level_1 ? 22 : 22 + 4 * info.M);
     write(out, 1, 15);
+    write(out, 4, 0xff << 24 | LATEST_VERSION); // バージョン番号
     write(out, 4, info.V);
     write(out, 4, info.M);
     write(out, 4, info.E);
+    write(out, 4, info.count);
     write(out, 1, info.value_is_level_1 ? 1 : 0);
     if (!info.value_is_level_1) {
         for (int m = 0; m < info.M; m++) {
@@ -511,6 +529,7 @@ void merge_search(std::vector<std::ifstream *> &in, const std::vector<Info> &in_
     out_info.point_count = in_info[0].point_count;
     out_info.M = out_info.V = value_max;
     out_info.E = 0;
+    out_info.count = in_info[0].count + in_info[1].count;
     out_info.bits = 32;
     for (int i = 8; i < 32; i += 8) {
         if (value_max < (1 << (i - 1))) {

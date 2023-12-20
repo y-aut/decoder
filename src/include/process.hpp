@@ -17,6 +17,8 @@ struct Info {
     int M = 0;
     // データ代表値の尺度因子
     int E = 0;
+    // 重なりの枚数
+    int count = 1;
     // 各レベルに対応するデータ代表値
     std::vector<int> value;
     // データのバイト数

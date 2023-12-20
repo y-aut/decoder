@@ -17,6 +17,9 @@ CSF LAST_LONGITUDE = 149.993750;
 CSF DX = (LAST_LONGITUDE - FIRST_LONGITUDE) / (WIDTH - 1);
 CSF DY = (LAST_LATITUDE - FIRST_LATITUDE) / (HEIGHT - 1);
 
+// 追加セクションの最新バージョン
+CSI LATEST_VERSION = 2;
+
 // 画像内部の点かどうかを判定する
 inline bool is_in(int x, int y) {
     return 0 <= x && x < WIDTH && 0 <= y && y < HEIGHT;
