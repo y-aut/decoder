@@ -150,6 +150,17 @@ void write_info(std::ofstream &out, Info &info) {
     write(out, 1, 7);
 }
 
+void show_info(const Info &info) {
+    cout << "point_count: " << info.point_count << endl;
+    cout << "bits: " << info.bits << endl;
+    cout << "V: " << info.V << endl;
+    cout << "M: " << info.M << endl;
+    cout << "E: " << info.E << endl;
+    cout << "count: " << info.count << endl;
+    cout << "data_length: " << info.data_length << endl;
+    cout << "value_is_level_1: " << info.value_is_level_1 << endl;
+}
+
 // 区間 [a, b) と [c, d) にともに含まれる整数の個数を求める
 int intersect(int a, int b, int c, int d) {
     if (a > c) return intersect(c, d, a, b);
@@ -183,6 +194,40 @@ int in_radius_count(int old_index, int new_index, int center, float radius) {
         }
     }
     return ans;
+}
+
+// 全地点のレベル値を取得する
+std::vector<int> decode(std::ifstream &in, const Info &info) {
+    vector<int> res;
+
+    int in_bytes = info.bits / 8;
+    int read_bytes = 0;
+
+    Segment seg;
+    int seg_len = 0;
+    while (!in.eof()) {
+        int val = read(in, in_bytes);
+        read_bytes += in_bytes;
+
+        auto new_seg = decode(info, seg, seg_len, val);
+        if (new_seg.length) {
+            seg_len = 0;
+            for (int i = 0; i < seg.length; i++) {
+                res.push_back(seg.value);
+            }
+            seg = new_seg;
+        } else {
+            seg_len++;
+        }
+
+        if (read_bytes >= info.data_length) break;
+    }
+
+    for (int i = 0; i < seg.length; i++) {
+        res.push_back(seg.value);
+    }
+
+    return res;
 }
 
 // 指定した地点の雨量を取得する
@@ -661,6 +706,74 @@ void create_image(std::ifstream &in, std::string out_file, const Info &info, con
             set_color(img, index % WIDTH, index / WIDTH, c);
             index++;
         }
+    }
+
+    draw_coastline(img);
+    for (auto p : pos) {
+        draw_location(img, p.first, p.second);
+    }
+
+    save_bitmap(img, out_file, WIDTH, HEIGHT);
+    delete[] img;
+}
+
+// 各地点にユーザーがいる確率を計算し，画像で出力する
+void create_prob_image(std::ifstream &in, std::ifstream &merged, std::string out_file, const Info &info, const Info &merged_info, const std::function<Color(double)> &color, const std::vector<std::pair<float, float>> &pos) {
+    CSD DBL_INF = 1e300;
+    CSD DBL_EPS = 1e-15;
+
+    // 雨の平均回数
+    CSD MEAN_RAIN_COUNT = 1000;
+
+    // 適合率
+    CSD Pr = 0.9;
+    // 再現率はツイート数に応じて決める
+    // Sigmoid を利用，MEAN_RAIN_COUNT でだいたい 0.9 になるようにする
+    double Re = max(DBL_EPS, 2. / (1. + exp(-info.count * 3. / MEAN_RAIN_COUNT)) - 1.);
+
+    auto values = decode(in, info);
+    auto merged_values = decode(merged, merged_info);
+
+    vector<double> logp(WIDTH * HEIGHT, -DBL_INF);
+    int exist_count = 0;
+    for (int i = 0; i < WIDTH * HEIGHT; i++) {
+        if (values[i] == 0 || merged_values[i] == 0) continue;
+        int m = merged_info.get_value(merged_values[i]);
+        if (m == 0) continue;
+        int Ttt = info.get_value(values[i]);
+        int Tft = info.count - Ttt;
+        int Ttf = m - Ttt;
+        int Tff = DATA_COUNT - Ttt - Tft - Ttf;
+        double r = (double)m / DATA_COUNT;
+        double alpha = r / (1 - r) * (1 - Pr) / Pr * Re;
+        logp[i] = Tft * log(alpha) + Tff * log(1 - alpha);
+        exist_count++;
+    }
+
+    auto max_logp = *max_element(logp.begin(), logp.end());
+
+    // 下位 20 % の値を取得
+    auto cpy = logp;
+    int n = exist_count * 4 / 5;
+    nth_element(cpy.begin(), cpy.begin() + n, cpy.end(), greater<double>());
+    double nth = cpy[n];
+
+    auto img = new unsigned char[WIDTH * HEIGHT * 3];
+
+    for (int i = 0; i < WIDTH * HEIGHT; i++) {
+        // 最小値が 0, 最大値が 1 になるように変換
+        // 最大値に近いところほど大きく変化するようにする
+        if (abs(logp[i] - -DBL_INF) < DBL_EPS) {
+            logp[i] = -1;
+        } else {
+            // 線形変換
+            logp[i] = max(0., (logp[i] - nth) / (max_logp - nth));
+            // 指数関数 y = (a^x - 1) / (a - 1) を利用
+            CSD BASE = 1e2;
+            logp[i] = fix((pow(BASE, logp[i]) - 1) / (BASE - 1), 0., 1.);
+        }
+        auto c = color(logp[i]);
+        set_color(img, i % WIDTH, i / WIDTH, c);
     }
 
     draw_coastline(img);

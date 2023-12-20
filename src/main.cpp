@@ -12,6 +12,9 @@ using namespace std;
 void show_usage() {
     cout << R"(*** USAGE ***
 
+info FILENAME
+    ファイルの情報を表示する
+
 value [-r RADIUS] FILENAME LATITUDE LONGITUDE
     指定した地点の雨量を取得する
     半径 (px) を指定したときは，中心からの距離がそれ以下の点について平均をとる
@@ -34,8 +37,35 @@ image [-o OUT_FILE] [-l LATITUDE LONGITUDE] [-c] FILENAME
     ビットマップを作成する
     -l を指定すると，指定した地点に印をつける．複数指定可能
     -c を指定すると，降水量に基づいた色分けを行う
+
+pimage [-o OUT_FILE] [-m MERGED_FILE] [-l LATITUDE LONGITUDE] FILENAME
+    ユーザーの所在地の確率からビットマップを作成する
+    -l を指定すると，指定した地点に印をつける．複数指定可能
 )"
          << endl;
+}
+
+int info_cmd(queue<string> &args) {
+    string in_file;
+
+    if (args.size() != 1) {
+        show_usage();
+        return 1;
+    }
+
+    in_file = args.front();
+
+    ifstream in(in_file, ios::in | ios::binary);
+    if (!in) {
+        cout << "入力ファイルが開けませんでした: " << in_file << endl;
+        return 1;
+    }
+
+    Info info;
+    read_info(in, info);
+    show_info(info);
+
+    return 0;
 }
 
 int value_cmd(queue<string> &args) {
@@ -434,6 +464,81 @@ int image_cmd(queue<string> &args) {
     return 0;
 }
 
+int pimage_cmd(queue<string> &args) {
+    string in_file, out_file = "out.bmp", merged_file = "/home/yamashita/disk02/analyze/merged/merged.bin";
+    vector<pair<float, float>> pos;
+
+    // コマンドライン引数をパース
+    while (!args.empty()) {
+        if (args.front() == "-o") {
+            args.pop();
+            if (args.empty()) {
+                show_usage();
+                return 1;
+            }
+            out_file = args.front();
+        } else if (args.front() == "-m") {
+            args.pop();
+            if (args.empty()) {
+                show_usage();
+                return 1;
+            }
+            merged_file = args.front();
+        } else if (args.front() == "-l") {
+            args.pop();
+            if (args.size() <= 1) {
+                show_usage();
+                return 1;
+            }
+            float lat = stof(args.front());
+            args.pop();
+            float lon = stof(args.front());
+            pos.emplace_back(lat, lon);
+        } else {
+            if (!in_file.empty()) {
+                show_usage();
+                return 1;
+            }
+            in_file = args.front();
+        }
+        args.pop();
+    }
+
+    if (in_file.empty()) {
+        cout << "入力ファイルが指定されていません" << endl;
+        return 1;
+    }
+
+    ifstream in(in_file, ios::in | ios::binary);
+    if (!in) {
+        cout << "入力ファイルが開けませんでした: " << in_file << endl;
+        return 1;
+    }
+
+    ifstream merged(merged_file, ios::in | ios::binary);
+    if (!in) {
+        cout << "マージファイルが開けませんでした: " << in_file << endl;
+        return 1;
+    }
+
+    Info info, merged_info;
+    read_info(in, info);
+    read_info(merged, merged_info);
+
+    // グラデーションで色付け
+    auto f = [&](double r) {
+        if (r < 0) return Color("C0C0C0");
+        return Color::from_hsl(240 * (1 - r), 100, 50);
+    };
+
+    create_prob_image(in, merged, out_file, info, merged_info, f, pos);
+    in.close();
+
+    cout << "画像ファイルを出力しました: " << out_file << endl;
+
+    return 0;
+}
+
 int main(int argc, char *argv[]) {
     cout << setprecision(10);
 
@@ -442,7 +547,10 @@ int main(int argc, char *argv[]) {
         args.push(argv[i]);
     }
 
-    if (args.front() == "value") {
+    if (args.front() == "info") {
+        args.pop();
+        return info_cmd(args);
+    } else if (args.front() == "value") {
         args.pop();
         return value_cmd(args);
     } else if (args.front() == "values") {
@@ -460,6 +568,9 @@ int main(int argc, char *argv[]) {
     } else if (args.front() == "image") {
         args.pop();
         return image_cmd(args);
+    } else if (args.front() == "pimage") {
+        args.pop();
+        return pimage_cmd(args);
     } else {
         show_usage();
         return 1;

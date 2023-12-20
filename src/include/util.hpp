@@ -3,6 +3,7 @@
 
 #define CSI constexpr static int
 #define CSF constexpr static float
+#define CSD constexpr static double
 
 // 画像の大きさ
 CSI WIDTH = 2560;
@@ -16,6 +17,8 @@ CSF LAST_LONGITUDE = 149.993750;
 // 格子点間の緯度・経度差
 CSF DX = (LAST_LONGITUDE - FIRST_LONGITUDE) / (WIDTH - 1);
 CSF DY = (LAST_LATITUDE - FIRST_LATITUDE) / (HEIGHT - 1);
+// 解析雨量データの件数
+CSI DATA_COUNT = 87648;
 
 // 追加セクションの最新バージョン
 CSI LATEST_VERSION = 2;
@@ -42,7 +45,8 @@ inline int pow_int(int a, int b) {
     return res;
 }
 
-inline int fix(int v, int min, int max) {
+template <typename F>
+inline F fix(F v, F min, F max) {
     if (v < min) return min;
     else if (v > max) return max;
     else return v;
