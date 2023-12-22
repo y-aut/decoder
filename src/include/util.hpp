@@ -34,9 +34,30 @@ inline std::pair<int, int> get_pixel(float latitude, float longitude) {
             (int)round((latitude - FIRST_LATITUDE) / DY)};
 }
 
+inline std::pair<int, int> get_pixel(std::pair<float, float> coord) {
+    return get_pixel(coord.first, coord.second);
+}
+
 // ピクセルの座標に対応する緯度・経度を取得する
 inline std::pair<float, float> get_coord(int x, int y) {
     return {FIRST_LATITUDE + y * DY, FIRST_LONGITUDE + x * DX};
+}
+
+// 三次メッシュのコードに対応するメッシュの中心の緯度・経度を取得する
+inline std::pair<float, float> get_coord_from_code(int code) {
+    // 1 次
+    float lat = (code / 1000000) / 1.5;
+    float lon = ((code / 10000) % 100) + 100;
+    // 2 次
+    lat += 5. / 60 * ((code / 1000) % 10);
+    lon += 7.5 / 60 * ((code / 100) % 10);
+    // 3 次
+    lat += 30. / 3600 * ((code / 10) % 10);
+    lon += 45. / 3600 * (code % 10);
+    // 中心座標
+    lat += 30. / 3600 / 2;
+    lon += 45. / 3600 / 2;
+    return {lat, lon};
 }
 
 inline int pow_int(int a, int b) {

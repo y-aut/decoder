@@ -1,6 +1,7 @@
 #pragma once
 #include "color.hpp"
 #include "util.hpp"
+#include <functional>
 
 // 画像の特定のピクセルに色を設定する
 void set_color(unsigned char img[], int x, int y, const Color &c);
@@ -10,3 +11,6 @@ void draw_coastline(unsigned char img[]);
 
 // 位置を描画する
 void draw_location(unsigned char img[], float latitude, float longitude);
+
+// 人口密度を描画する
+void draw_population(unsigned char img[], const std::function<Color(double)> &color);

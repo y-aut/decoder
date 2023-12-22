@@ -1,5 +1,6 @@
 #include "process.hpp"
 #include "bitmap.hpp"
+#include "io.hpp"
 #include "map.hpp"
 #include "segment.hpp"
 #include "util.hpp"
@@ -8,7 +9,6 @@
 #include <math.h>
 #include <queue>
 #include <sstream>
-#include <unordered_map>
 #include <vector>
 
 #define IS_LITTLE_ENDIAN
@@ -718,7 +718,7 @@ void create_image(std::ifstream &in, std::string out_file, const Info &info, con
 }
 
 // 各地点にユーザーがいる確率を計算し，画像で出力する
-void create_prob_image(std::ifstream &in, std::ifstream &merged, std::string out_file, const Info &info, const Info &merged_info, const std::function<Color(double)> &color, const std::vector<std::pair<float, float>> &pos) {
+void create_prob_image(std::ifstream &in, std::ifstream &merged, std::string out_file, const Info &info, const Info &merged_info, const std::function<Color(double)> &color, const std::vector<std::pair<float, float>> &pos, bool use_population) {
     CSD DBL_INF = 1e300;
     CSD DBL_EPS = 1e-15;
 
@@ -731,6 +731,15 @@ void create_prob_image(std::ifstream &in, std::ifstream &merged, std::string out
     // Sigmoid を利用，MEAN_RAIN_COUNT でだいたい 0.9 になるようにする
     double Re = max(DBL_EPS, 2. / (1. + exp(-info.count * 3. / MEAN_RAIN_COUNT)) - 1.);
 
+    unordered_map<int, int> population;
+    if (use_population) {
+        auto data = load_population();
+        for (auto v : data) {
+            auto p = get_pixel(get_coord_from_code(v.first));
+            population[p.first + p.second * WIDTH] = v.second;
+        }
+    }
+
     auto values = decode(in, info);
     auto merged_values = decode(merged, merged_info);
 
@@ -738,6 +747,7 @@ void create_prob_image(std::ifstream &in, std::ifstream &merged, std::string out
     int exist_count = 0;
     for (int i = 0; i < WIDTH * HEIGHT; i++) {
         if (values[i] == 0 || merged_values[i] == 0) continue;
+        if (use_population && !population.count(i)) continue;
         int m = merged_info.get_value(merged_values[i]);
         if (m == 0) continue;
         int Ttt = info.get_value(values[i]);
@@ -747,6 +757,7 @@ void create_prob_image(std::ifstream &in, std::ifstream &merged, std::string out
         double r = (double)m / DATA_COUNT;
         double alpha = r / (1 - r) * (1 - Pr) / Pr * Re;
         logp[i] = Tft * log(alpha) + Tff * log(1 - alpha);
+        if (use_population) logp[i] += log(population[i]);
         exist_count++;
     }
 

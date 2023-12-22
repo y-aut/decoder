@@ -38,9 +38,10 @@ image [-o OUT_FILE] [-l LATITUDE LONGITUDE] [-c] FILENAME
     -l を指定すると，指定した地点に印をつける．複数指定可能
     -c を指定すると，降水量に基づいた色分けを行う
 
-pimage [-o OUT_FILE] [-m MERGED_FILE] [-l LATITUDE LONGITUDE] FILENAME
+pimage [-o OUT_FILE] [-m MERGED_FILE] [-l LATITUDE LONGITUDE] [-p] FILENAME
     ユーザーの所在地の確率からビットマップを作成する
     -l を指定すると，指定した地点に印をつける．複数指定可能
+    -p を指定すると，人口分布を推定に用いる
 )"
          << endl;
 }
@@ -467,6 +468,7 @@ int image_cmd(queue<string> &args) {
 int pimage_cmd(queue<string> &args) {
     string in_file, out_file = "out.bmp", merged_file = "/home/yamashita/disk02/analyze/merged/merged.bin";
     vector<pair<float, float>> pos;
+    bool use_population = false;
 
     // コマンドライン引数をパース
     while (!args.empty()) {
@@ -494,6 +496,8 @@ int pimage_cmd(queue<string> &args) {
             args.pop();
             float lon = stof(args.front());
             pos.emplace_back(lat, lon);
+        } else if (args.front() == "-p") {
+            use_population = true;
         } else {
             if (!in_file.empty()) {
                 show_usage();
@@ -531,7 +535,7 @@ int pimage_cmd(queue<string> &args) {
         return Color::from_hsl(240 * (1 - r), 100, 50);
     };
 
-    create_prob_image(in, merged, out_file, info, merged_info, f, pos);
+    create_prob_image(in, merged, out_file, info, merged_info, f, pos, use_population);
     in.close();
 
     cout << "画像ファイルを出力しました: " << out_file << endl;

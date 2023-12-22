@@ -1,4 +1,6 @@
 #include "map.hpp"
+#include "io.hpp"
+#include <algorithm>
 #include <fstream>
 #include <iostream>
 #include <math.h>
@@ -46,5 +48,15 @@ void draw_location(unsigned char img[], float latitude, float longitude) {
                 set_color(img, x_, y_, c);
             }
         }
+    }
+}
+
+void draw_population(unsigned char img[], const std::function<Color(double)> &color) {
+    auto data = load_population();
+    auto max_p = max_element(data.begin(), data.end())->second;
+
+    for (auto v : data) {
+        auto pixel = get_pixel(get_coord_from_code(v.first));
+        set_color(img, pixel.first, pixel.second, color((float)v.second / max_p));
     }
 }
