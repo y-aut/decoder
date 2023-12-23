@@ -8,6 +8,7 @@
 // 画像の大きさ
 CSI WIDTH = 2560;
 CSI HEIGHT = 3360;
+CSI SIZE = WIDTH * HEIGHT;
 // 左上格子点の緯度・経度
 CSF FIRST_LATITUDE = 47.995833;
 CSF FIRST_LONGITUDE = 118.006250;
@@ -38,9 +39,21 @@ inline std::pair<int, int> get_pixel(std::pair<float, float> coord) {
     return get_pixel(coord.first, coord.second);
 }
 
+inline int get_index(std::pair<int, int> pixel) {
+    return pixel.first + pixel.second * WIDTH;
+}
+
+inline std::pair<int, int> get_pixel(int index) {
+    return {index % WIDTH, index / WIDTH};
+}
+
 // ピクセルの座標に対応する緯度・経度を取得する
 inline std::pair<float, float> get_coord(int x, int y) {
     return {FIRST_LATITUDE + y * DY, FIRST_LONGITUDE + x * DX};
+}
+
+inline std::pair<float, float> get_coord(std::pair<int, int> pixel) {
+    return get_coord(pixel.first, pixel.second);
 }
 
 // 三次メッシュのコードに対応するメッシュの中心の緯度・経度を取得する

@@ -219,7 +219,7 @@ int rank_cmd(queue<string> &args) {
 
     auto ranking = get_ranking(in, info, count, radius, distance);
     for (auto item : ranking) {
-        auto coord = get_coord(item.first % WIDTH, item.first / WIDTH);
+        auto coord = get_coord(get_pixel(item.first));
         cout << coord.first << " " << coord.second << " " << item.second << endl;
     }
 
@@ -520,8 +520,8 @@ int pimage_cmd(queue<string> &args) {
     }
 
     ifstream merged(merged_file, ios::in | ios::binary);
-    if (!in) {
-        cout << "マージファイルが開けませんでした: " << in_file << endl;
+    if (!merged) {
+        cout << "マージファイルが開けませんでした: " << merged_file << endl;
         return 1;
     }
 

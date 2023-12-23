@@ -1,4 +1,5 @@
 #include "io.hpp"
+#include "util.hpp"
 #include <fstream>
 #include <iostream>
 
@@ -21,7 +22,7 @@ std::unordered_map<int, int> load_population() {
         auto pos = line.find(',');
         int code = stoi(line.substr(0, pos));
         int population = stoi(line.substr(pos + 1));
-        res[code] = population;
+        res[get_index(get_pixel(get_coord_from_code(code)))] = population;
     }
 
     return res;

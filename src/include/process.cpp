@@ -236,7 +236,7 @@ float get_value(std::ifstream &in, const Info &info, float latitude, float longi
     if (!is_in(pixel.first, pixel.second)) {
         return -2;
     }
-    int index = pixel.first + pixel.second * WIDTH;
+    int index = get_index(pixel);
     int start_index = index - max(0, (int)ceilf(radius) * (WIDTH + 1)) - 1;
     int end_index = index + max(0, (int)ceilf(radius) * (WIDTH + 1)) + 1;
 
@@ -300,7 +300,7 @@ void get_values(std::ifstream &in, std::ifstream &coord, std::ofstream &out, con
         if (!is_in(pixel.first, pixel.second)) {
             indices.push_back(-1);
         } else {
-            indices.push_back(pixel.first + pixel.second * WIDTH);
+            indices.push_back(get_index(pixel));
         }
     }
 
@@ -359,7 +359,7 @@ void get_values(std::ifstream &in, std::ifstream &coord, std::ofstream &out, con
 // ランキングを表示する
 std::vector<std::pair<int, float>> get_ranking(std::ifstream &in, const Info &info, int count, float radius, float distance) {
     // 全ての点の値を計算する
-    vector<int> values(WIDTH * HEIGHT, -1);
+    vector<int> values(SIZE, -1);
 
     int in_bytes = info.bits / 8;
     int read_bytes = 0;
@@ -420,13 +420,13 @@ std::vector<std::pair<int, float>> get_ranking(std::ifstream &in, const Info &in
 
     // 周囲の点との平均をとる
     vector<pair<int, float>> average;
-    for (int index = 0; index < WIDTH * HEIGHT; index++) {
+    for (int index = 0; index < SIZE; index++) {
         if (values[index] == -1) continue;
-        int x = index % WIDTH, y = index / WIDTH;
+        auto pixel = get_pixel(index);
         int sum = 0, c = 0;
         for (auto d : offset) {
-            if (!is_in(x + d.first, y + d.second)) continue;
-            auto v = values[index + d.first + d.second * WIDTH];
+            if (!is_in(pixel.first + d.first, pixel.second + d.second)) continue;
+            auto v = values[index + get_index(d)];
             if (v == -1) continue;
             sum += v;
             c++;
@@ -668,7 +668,7 @@ void merge(std::vector<std::ifstream *> &in, std::ofstream &out, const std::vect
 }
 
 void create_image(std::ifstream &in, std::string out_file, const Info &info, const std::function<Color(int)> &color, const std::vector<std::pair<float, float>> &pos) {
-    auto img = new unsigned char[WIDTH * HEIGHT * 3];
+    auto img = new unsigned char[SIZE * 3];
     int index = 0;
 
     int in_bytes = info.bits / 8;
@@ -687,7 +687,7 @@ void create_image(std::ifstream &in, std::string out_file, const Info &info, con
                 // seg を書き出す
                 auto c = color(seg.value);
                 for (int i = 0; i < seg.length; i++) {
-                    set_color(img, index % WIDTH, index / WIDTH, c);
+                    set_color(img, get_pixel(index), c);
                     index++;
                 }
             }
@@ -703,7 +703,7 @@ void create_image(std::ifstream &in, std::string out_file, const Info &info, con
         // seg を書き出す
         auto c = color(seg.value);
         for (int i = 0; i < seg.length; i++) {
-            set_color(img, index % WIDTH, index / WIDTH, c);
+            set_color(img, get_pixel(index), c);
             index++;
         }
     }
@@ -723,29 +723,23 @@ void create_prob_image(std::ifstream &in, std::ifstream &merged, std::string out
     CSD DBL_EPS = 1e-15;
 
     // 雨の平均回数
-    CSD MEAN_RAIN_COUNT = 1000;
+    CSD MEAN_RAIN_COUNT = 15194.45125;
 
     // 適合率
     CSD Pr = 0.9;
     // 再現率はツイート数に応じて決める
     // Sigmoid を利用，MEAN_RAIN_COUNT でだいたい 0.9 になるようにする
-    double Re = max(DBL_EPS, 2. / (1. + exp(-info.count * 3. / MEAN_RAIN_COUNT)) - 1.);
+    double Re = 2. / (1. + exp(-info.count * 3. / MEAN_RAIN_COUNT)) - 1.;
 
     unordered_map<int, int> population;
-    if (use_population) {
-        auto data = load_population();
-        for (auto v : data) {
-            auto p = get_pixel(get_coord_from_code(v.first));
-            population[p.first + p.second * WIDTH] = v.second;
-        }
-    }
+    if (use_population) population = load_population();
 
     auto values = decode(in, info);
     auto merged_values = decode(merged, merged_info);
 
-    vector<double> logp(WIDTH * HEIGHT, -DBL_INF);
+    vector<double> logp(SIZE, -DBL_INF);
     int exist_count = 0;
-    for (int i = 0; i < WIDTH * HEIGHT; i++) {
+    for (int i = 0; i < SIZE; i++) {
         if (values[i] == 0 || merged_values[i] == 0) continue;
         if (use_population && !population.count(i)) continue;
         int m = merged_info.get_value(merged_values[i]);
@@ -756,7 +750,7 @@ void create_prob_image(std::ifstream &in, std::ifstream &merged, std::string out
         int Tff = DATA_COUNT - Ttt - Tft - Ttf;
         double r = (double)m / DATA_COUNT;
         double alpha = r / (1 - r) * (1 - Pr) / Pr * Re;
-        logp[i] = Tft * log(alpha) + Tff * log(1 - alpha);
+        logp[i] = Ttt * log(Re) + Ttf * log(1 - Re) + Tft * log(alpha) + Tff * log(1 - alpha);
         if (use_population) logp[i] += log(population[i]);
         exist_count++;
     }
@@ -769,9 +763,9 @@ void create_prob_image(std::ifstream &in, std::ifstream &merged, std::string out
     nth_element(cpy.begin(), cpy.begin() + n, cpy.end(), greater<double>());
     double nth = cpy[n];
 
-    auto img = new unsigned char[WIDTH * HEIGHT * 3];
+    auto img = new unsigned char[SIZE * 3];
 
-    for (int i = 0; i < WIDTH * HEIGHT; i++) {
+    for (int i = 0; i < SIZE; i++) {
         // 最小値が 0, 最大値が 1 になるように変換
         // 最大値に近いところほど大きく変化するようにする
         if (abs(logp[i] - -DBL_INF) < DBL_EPS) {
@@ -779,12 +773,9 @@ void create_prob_image(std::ifstream &in, std::ifstream &merged, std::string out
         } else {
             // 線形変換
             logp[i] = max(0., (logp[i] - nth) / (max_logp - nth));
-            // 指数関数 y = (a^x - 1) / (a - 1) を利用
-            CSD BASE = 1e2;
-            logp[i] = fix((pow(BASE, logp[i]) - 1) / (BASE - 1), 0., 1.);
         }
         auto c = color(logp[i]);
-        set_color(img, i % WIDTH, i / WIDTH, c);
+        set_color(img, get_pixel(i), c);
     }
 
     draw_coastline(img);

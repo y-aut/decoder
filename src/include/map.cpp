@@ -15,6 +15,10 @@ void set_color(unsigned char img[], int x, int y, const Color &c) {
     img[index + 2] = c.red;
 }
 
+void set_color(unsigned char img[], std::pair<int, int> pixel, const Color &c) {
+    set_color(img, pixel.first, pixel.second, c);
+}
+
 void draw_coastline(unsigned char img[]) {
     string coast_file = "/home/yamashita/disk02/geo/prefecture/pixel.csv";
     ifstream ifs(coast_file, ios::in);
@@ -56,7 +60,7 @@ void draw_population(unsigned char img[], const std::function<Color(double)> &co
     auto max_p = max_element(data.begin(), data.end())->second;
 
     for (auto v : data) {
-        auto pixel = get_pixel(get_coord_from_code(v.first));
+        auto pixel = get_pixel(v.first);
         set_color(img, pixel.first, pixel.second, color((float)v.second / max_p));
     }
 }
