@@ -168,7 +168,7 @@ int intersect(int a, int b, int c, int d) {
 }
 
 // 中心から radius 以内にある点の数
-int in_radius_count(int old_index, int new_index, int center, float radius) {
+int in_radius_count(int old_index, int new_index, int center, double radius) {
     if (radius < 1) {
         if (old_index <= center && center < new_index) return 1;
         else return 0;
@@ -179,7 +179,7 @@ int in_radius_count(int old_index, int new_index, int center, float radius) {
     int center_x = center % WIDTH, center_y = center / WIDTH;
     int ans = 0;
     for (int y = old_y; y <= new_y; y++) {
-        float x_dif = radius * radius - abs(y - center_y) * abs(y - center_y);
+        double x_dif = radius * radius - abs(y - center_y) * abs(y - center_y);
         if (x_dif < 0) continue;
         x_dif = sqrt(x_dif);
         int x_start = center_x - (int)x_dif, x_end = center_x + (int)x_dif + 1;
@@ -230,8 +230,39 @@ std::vector<int> decode(std::ifstream &in, const Info &info) {
     return res;
 }
 
+unordered_map<int, double> get_prob(ifstream &in, ifstream &merged, const Info &info, const Info &merged_info) {
+    // 雨の平均回数: 15194.45125 (人口が 0 でない地域), 13792.14131 (人口による重み付け)
+    CSD MEAN_RAIN_COUNT = 15194.45125;
+
+    // 適合率
+    CSD Pr = 0.9;
+    // 再現率はツイート数に応じて決める
+    // Sigmoid を利用，MEAN_RAIN_COUNT でだいたい 0.9 になるようにする
+    double Re = 2. / (1. + exp(-info.count * 3. / MEAN_RAIN_COUNT)) - 1.;
+
+    auto population = load_population();
+
+    auto values = decode(in, info);
+    auto merged_values = decode(merged, merged_info);
+
+    unordered_map<int, double> res;
+    for (auto item : population) {
+        if (values[item.first] == 0 || merged_values[item.first] == 0) continue;
+        int m = merged_info.get_value(merged_values[item.first]);
+        if (m == 0) continue;
+        int Ttt = info.get_value(values[item.first]);
+        int Tft = info.count - Ttt;
+        int Ttf = m - Ttt;
+        int Tff = DATA_COUNT - Ttt - Tft - Ttf;
+        double r = (double)m / DATA_COUNT;
+        double alpha = r / (1 - r) * (1 - Pr) / Pr * Re;
+        res[item.first] = Ttt * log(Re) + Ttf * log(1 - Re) + Tft * log(alpha) + Tff * log(1 - alpha) + log(item.second);
+    }
+    return res;
+}
+
 // 指定した地点の雨量を取得する
-float get_value(std::ifstream &in, const Info &info, float latitude, float longitude, float radius) {
+double get_value(std::ifstream &in, const Info &info, double latitude, double longitude, double radius) {
     auto pixel = get_pixel(latitude, longitude);
     if (!is_in(pixel.first, pixel.second)) {
         return -2;
@@ -244,7 +275,7 @@ float get_value(std::ifstream &in, const Info &info, float latitude, float longi
     int read_bytes = 0;
     int cur_index = 0;
 
-    float ans = 0;
+    double ans = 0;
     int count = 0;
 
     Segment seg;
@@ -291,7 +322,7 @@ void get_values(std::ifstream &in, std::ifstream &coord, std::ofstream &out, con
     // 座標のリストを取得
     vector<int> indices;
     string line;
-    float lat, lon;
+    double lat, lon;
     while (getline(coord, line)) {
         if (line.empty()) continue;
         stringstream ss(line);
@@ -311,7 +342,7 @@ void get_values(std::ifstream &in, std::ifstream &coord, std::ofstream &out, con
     indices_set.erase(unique(indices_set.begin(), indices_set.end()), indices_set.end());
     size_t cur_set_ind = indices_set[0] == -1 ? 1 : 0;
 
-    unordered_map<int, float> res;
+    unordered_map<int, double> res;
 
     int in_bytes = info.bits / 8;
     int read_bytes = 0;
@@ -357,7 +388,7 @@ void get_values(std::ifstream &in, std::ifstream &coord, std::ofstream &out, con
 }
 
 // ランキングを表示する
-std::vector<std::pair<int, float>> get_ranking(std::ifstream &in, const Info &info, int count, float radius, float distance) {
+std::vector<std::pair<int, double>> get_ranking(std::ifstream &in, const Info &info, int count, double radius, double distance) {
     // 全ての点の値を計算する
     vector<int> values(SIZE, -1);
 
@@ -419,7 +450,7 @@ std::vector<std::pair<int, float>> get_ranking(std::ifstream &in, const Info &in
     }
 
     // 周囲の点との平均をとる
-    vector<pair<int, float>> average;
+    vector<pair<int, double>> average;
     for (int index = 0; index < SIZE; index++) {
         if (values[index] == -1) continue;
         auto pixel = get_pixel(index);
@@ -431,29 +462,57 @@ std::vector<std::pair<int, float>> get_ranking(std::ifstream &in, const Info &in
             sum += v;
             c++;
         }
-        average.emplace_back(index, (float)sum / c);
+        average.emplace_back(index, (double)sum / c);
     }
-    sort(average.begin(), average.end(), [](pair<int, float> a, pair<int, float> b) {
+    sort(average.begin(), average.end(), [](pair<int, double> a, pair<int, double> b) {
         if (a.second == b.second) return a.first < b.first;
         else return a.second > b.second;
     });
 
-    vector<pair<int, float>> result;
+    vector<pair<int, double>> result;
 
     // 順に取り出す
     for (auto item : average) {
         // result にある点から距離 distance 以内にないか
-        int x = item.first % WIDTH, y = item.first / WIDTH;
+        auto p = get_pixel(item.first);
         bool exist = false;
         for (auto r : result) {
-            int rx = r.first % WIDTH, ry = r.first / WIDTH;
-            if ((x - rx) * (x - rx) + (y - ry) * (y - ry) <= distance * distance) {
+            if (dist2(p, get_pixel(r.first)) <= distance * distance) {
                 exist = true;
                 break;
             }
         }
         if (exist) continue;
         result.emplace_back(item.first, item.second / pow_int(10, info.E));
+        if ((int)result.size() >= count) break;
+    }
+
+    return result;
+}
+
+std::vector<std::pair<int, double>> get_prob_ranking(std::ifstream &in, std::ifstream &merged, const Info &info, const Info &merged_info, int count, double distance) {
+    auto logp = get_prob(in, merged, info, merged_info);
+    vector<pair<int, double>> cpy(logp.begin(), logp.end());
+    sort(cpy.begin(), cpy.end(), [](const pair<int, double> &a, const pair<int, double> b) {
+        if (a.second == b.second) return a.first < b.first;
+        else return a.second > b.second;
+    });
+
+    vector<pair<int, double>> result;
+
+    // 順に取り出す
+    for (auto item : cpy) {
+        // result にある点から距離 distance 以内にないか
+        auto p = get_pixel(item.first);
+        bool exist = false;
+        for (auto r : result) {
+            if (dist2(p, get_pixel(r.first)) <= distance * distance) {
+                exist = true;
+                break;
+            }
+        }
+        if (exist) continue;
+        result.emplace_back(item.first, item.second);
         if ((int)result.size() >= count) break;
     }
 
@@ -667,7 +726,7 @@ void merge(std::vector<std::ifstream *> &in, std::ofstream &out, const std::vect
     write(out, 4, 0x37373737);
 }
 
-void create_image(std::ifstream &in, std::string out_file, const Info &info, const std::function<Color(int)> &color, const std::vector<std::pair<float, float>> &pos) {
+void create_image(std::ifstream &in, std::string out_file, const Info &info, const std::function<Color(int)> &color, const std::vector<std::pair<double, double>> &pos, const std::function<Color(int)> &pos_color) {
     auto img = new unsigned char[SIZE * 3];
     int index = 0;
 
@@ -709,8 +768,8 @@ void create_image(std::ifstream &in, std::string out_file, const Info &info, con
     }
 
     draw_coastline(img);
-    for (auto p : pos) {
-        draw_location(img, p.first, p.second);
+    for (size_t i = 0; i < pos.size(); i++) {
+        draw_location(img, pos[i].first, pos[i].second, pos_color(i));
     }
 
     save_bitmap(img, out_file, WIDTH, HEIGHT);
@@ -718,48 +777,15 @@ void create_image(std::ifstream &in, std::string out_file, const Info &info, con
 }
 
 // 各地点にユーザーがいる確率を計算し，画像で出力する
-void create_prob_image(std::ifstream &in, std::ifstream &merged, std::string out_file, const Info &info, const Info &merged_info, const std::function<Color(double)> &color, const std::vector<std::pair<float, float>> &pos, bool use_population) {
-    CSD DBL_INF = 1e300;
-    CSD DBL_EPS = 1e-15;
+void create_prob_image(std::ifstream &in, std::ifstream &merged, std::string out_file, const Info &info, const Info &merged_info, const std::function<Color(double)> &color, const std::vector<std::pair<double, double>> &pos, const std::function<Color(int)> &pos_color) {
+    auto logp = get_prob(in, merged, info, merged_info);
 
-    // 雨の平均回数
-    CSD MEAN_RAIN_COUNT = 15194.45125;
-
-    // 適合率
-    CSD Pr = 0.9;
-    // 再現率はツイート数に応じて決める
-    // Sigmoid を利用，MEAN_RAIN_COUNT でだいたい 0.9 になるようにする
-    double Re = 2. / (1. + exp(-info.count * 3. / MEAN_RAIN_COUNT)) - 1.;
-
-    unordered_map<int, int> population;
-    if (use_population) population = load_population();
-
-    auto values = decode(in, info);
-    auto merged_values = decode(merged, merged_info);
-
-    vector<double> logp(SIZE, -DBL_INF);
-    int exist_count = 0;
-    for (int i = 0; i < SIZE; i++) {
-        if (values[i] == 0 || merged_values[i] == 0) continue;
-        if (use_population && !population.count(i)) continue;
-        int m = merged_info.get_value(merged_values[i]);
-        if (m == 0) continue;
-        int Ttt = info.get_value(values[i]);
-        int Tft = info.count - Ttt;
-        int Ttf = m - Ttt;
-        int Tff = DATA_COUNT - Ttt - Tft - Ttf;
-        double r = (double)m / DATA_COUNT;
-        double alpha = r / (1 - r) * (1 - Pr) / Pr * Re;
-        logp[i] = Ttt * log(Re) + Ttf * log(1 - Re) + Tft * log(alpha) + Tff * log(1 - alpha);
-        if (use_population) logp[i] += log(population[i]);
-        exist_count++;
-    }
-
-    auto max_logp = *max_element(logp.begin(), logp.end());
+    vector<double> cpy;
+    for (auto item : logp) cpy.push_back(item.second);
+    auto max_logp = *max_element(cpy.begin(), cpy.end());
 
     // 下位 20 % の値を取得
-    auto cpy = logp;
-    int n = exist_count * 4 / 5;
+    int n = cpy.size() * 4 / 5;
     nth_element(cpy.begin(), cpy.begin() + n, cpy.end(), greater<double>());
     double nth = cpy[n];
 
@@ -768,19 +794,18 @@ void create_prob_image(std::ifstream &in, std::ifstream &merged, std::string out
     for (int i = 0; i < SIZE; i++) {
         // 最小値が 0, 最大値が 1 になるように変換
         // 最大値に近いところほど大きく変化するようにする
-        if (abs(logp[i] - -DBL_INF) < DBL_EPS) {
-            logp[i] = -1;
-        } else {
+        double v = -1;
+        if (logp.count(i)) {
             // 線形変換
-            logp[i] = max(0., (logp[i] - nth) / (max_logp - nth));
+            v = max(0., (logp[i] - nth) / (max_logp - nth));
         }
-        auto c = color(logp[i]);
+        auto c = color(v);
         set_color(img, get_pixel(i), c);
     }
 
     draw_coastline(img);
-    for (auto p : pos) {
-        draw_location(img, p.first, p.second);
+    for (size_t i = 0; i < pos.size(); i++) {
+        draw_location(img, pos[i].first, pos[i].second, pos_color(i));
     }
 
     save_bitmap(img, out_file, WIDTH, HEIGHT);

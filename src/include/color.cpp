@@ -18,10 +18,10 @@ Color::Color(std::string code) {
     blue = stoi(code.substr(4, 2), nullptr, 16);
 }
 
-Color Color::from_hsl(float h, float s, float l) {
+Color Color::from_hsl(double h, double s, double l) {
     h -= floor(h / 360) * 360;
-    float max = 255 * (l + s * (100 - abs(2 * l - 100)) / 200) / 100;
-    float min = 255 * (l - s * (100 - abs(2 * l - 100)) / 200) / 100;
+    double max = 255 * (l + s * (100 - abs(2 * l - 100)) / 200) / 100;
+    double min = 255 * (l - s * (100 - abs(2 * l - 100)) / 200) / 100;
     if (h < 60) {
         return Color(max, min + (max - min) * h / 60, min);
     } else if (h < 120) {

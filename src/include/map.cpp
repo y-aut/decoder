@@ -38,18 +38,17 @@ void draw_coastline(unsigned char img[]) {
     }
 }
 
-void draw_location(unsigned char img[], float latitude, float longitude) {
-    // 地点を赤丸で囲んで表示する
+void draw_location(unsigned char img[], double latitude, double longitude, const Color &color) {
+    // 地点を丸で囲んで表示する
     CSF RADIUS = 10.0;
-    auto c = Color("FF0000");
 
     auto pos = get_pixel(latitude, longitude);
-    for (float theta = 0; theta < 2 * M_PI; theta += 0.1) {
+    for (double theta = 0; theta < 2 * M_PI; theta += 0.1) {
         int x = pos.first + (int)(RADIUS * cosf(theta));
         int y = pos.second + (int)(RADIUS * sinf(theta));
         for (int x_ = x; x_ < x + 2; x_++) {
             for (int y_ = y; y_ < y + 2; y_++) {
-                set_color(img, x_, y_, c);
+                set_color(img, x_, y_, color);
             }
         }
     }
@@ -61,6 +60,6 @@ void draw_population(unsigned char img[], const std::function<Color(double)> &co
 
     for (auto v : data) {
         auto pixel = get_pixel(v.first);
-        set_color(img, pixel.first, pixel.second, color((float)v.second / max_p));
+        set_color(img, pixel.first, pixel.second, color((double)v.second / max_p));
     }
 }

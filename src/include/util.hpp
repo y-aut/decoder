@@ -1,9 +1,11 @@
 #pragma once
 #include <math.h>
+#include <string>
 
 #define CSI constexpr static int
-#define CSF constexpr static float
+#define CSF constexpr static double
 #define CSD constexpr static double
+#define CSS const static std::string
 
 // 画像の大きさ
 CSI WIDTH = 2560;
@@ -21,6 +23,8 @@ CSF DY = (LAST_LATITUDE - FIRST_LATITUDE) / (HEIGHT - 1);
 // 解析雨量データの件数
 CSI DATA_COUNT = 87648;
 
+CSS MERGED_FILE = "/home/yamashita/disk02/analyze/merged/merged.bin";
+
 // 追加セクションの最新バージョン
 CSI LATEST_VERSION = 2;
 
@@ -30,12 +34,12 @@ inline bool is_in(int x, int y) {
 }
 
 // 緯度・経度に対応するピクセルの座標を取得する
-inline std::pair<int, int> get_pixel(float latitude, float longitude) {
+inline std::pair<int, int> get_pixel(double latitude, double longitude) {
     return {(int)round((longitude - FIRST_LONGITUDE) / DX),
             (int)round((latitude - FIRST_LATITUDE) / DY)};
 }
 
-inline std::pair<int, int> get_pixel(std::pair<float, float> coord) {
+inline std::pair<int, int> get_pixel(std::pair<double, double> coord) {
     return get_pixel(coord.first, coord.second);
 }
 
@@ -48,19 +52,19 @@ inline std::pair<int, int> get_pixel(int index) {
 }
 
 // ピクセルの座標に対応する緯度・経度を取得する
-inline std::pair<float, float> get_coord(int x, int y) {
+inline std::pair<double, double> get_coord(int x, int y) {
     return {FIRST_LATITUDE + y * DY, FIRST_LONGITUDE + x * DX};
 }
 
-inline std::pair<float, float> get_coord(std::pair<int, int> pixel) {
+inline std::pair<double, double> get_coord(std::pair<int, int> pixel) {
     return get_coord(pixel.first, pixel.second);
 }
 
 // 三次メッシュのコードに対応するメッシュの中心の緯度・経度を取得する
-inline std::pair<float, float> get_coord_from_code(int code) {
+inline std::pair<double, double> get_coord_from_code(int code) {
     // 1 次
-    float lat = (code / 1000000) / 1.5;
-    float lon = ((code / 10000) % 100) + 100;
+    double lat = (code / 1000000) / 1.5;
+    double lon = ((code / 10000) % 100) + 100;
     // 2 次
     lat += 5. / 60 * ((code / 1000) % 10);
     lon += 7.5 / 60 * ((code / 100) % 10);
@@ -71,6 +75,10 @@ inline std::pair<float, float> get_coord_from_code(int code) {
     lat += 30. / 3600 / 2;
     lon += 45. / 3600 / 2;
     return {lat, lon};
+}
+
+inline double dist2(std::pair<int, int> p, std::pair<int, int> q) {
+    return (p.first - q.first) * (p.first - q.first) + (p.second - q.second) * (p.second - q.second);
 }
 
 inline int pow_int(int a, int b) {

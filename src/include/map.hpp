@@ -11,7 +11,7 @@ void set_color(unsigned char img[], std::pair<int, int> pixel, const Color &c);
 void draw_coastline(unsigned char img[]);
 
 // 位置を描画する
-void draw_location(unsigned char img[], float latitude, float longitude);
+void draw_location(unsigned char img[], double latitude, double longitude, const Color &color);
 
 // 人口密度を描画する
 void draw_population(unsigned char img[], const std::function<Color(double)> &color);

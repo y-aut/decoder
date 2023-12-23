@@ -27,21 +27,26 @@ rank [-n COUNT] [-r RADIUS] [-d DISTANCE] FILENAME
     値が高い地点を順に指定した数だけ出力する
     指定した距離 (px) 以内の 2 点はランキング中に含まれない
 
+prank [-n COUNT] [-d DISTANCE] FILENAME
+    ユーザーの所在地の確率が高い地点を順に指定した数だけ出力する
+    指定した距離 (px) 以内の 2 点はランキング中に含まれない
+
 convert [-t THRESHOLD] [-o OUT_FILE] FILENAME
     ファイルを変換する
 
 merge [-o OUT_FILE] FILENAME1 FILENAME2
     ファイルをマージする
 
-image [-o OUT_FILE] [-l LATITUDE LONGITUDE] [-c] FILENAME
+image [-o OUT_FILE] [-l LATITUDE LONGITUDE] [-r] [-c] FILENAME
     ビットマップを作成する
     -l を指定すると，指定した地点に印をつける．複数指定可能
+    -r を指定すると，複数地点を指定した場合にグラデーションで印をつける
     -c を指定すると，降水量に基づいた色分けを行う
 
-pimage [-o OUT_FILE] [-m MERGED_FILE] [-l LATITUDE LONGITUDE] [-p] FILENAME
+pimage [-o OUT_FILE] [-l LATITUDE LONGITUDE] [-r] FILENAME
     ユーザーの所在地の確率からビットマップを作成する
     -l を指定すると，指定した地点に印をつける．複数指定可能
-    -p を指定すると，人口分布を推定に用いる
+    -r を指定すると，複数地点を指定した場合にグラデーションで印をつける
 )"
          << endl;
 }
@@ -71,7 +76,7 @@ int info_cmd(queue<string> &args) {
 
 int value_cmd(queue<string> &args) {
     string in_file;
-    float latitude = 0, longitude = 0, radius = 0;
+    double latitude = 0, longitude = 0, radius = 0;
 
     // コマンドライン引数をパース
     while (!args.empty()) {
@@ -168,7 +173,7 @@ int values_cmd(queue<string> &args) {
 int rank_cmd(queue<string> &args) {
     string in_file;
     int count = 5;
-    float radius = 0, distance = 0;
+    double radius = 0, distance = 0;
 
     // コマンドライン引数をパース
     while (!args.empty()) {
@@ -218,6 +223,67 @@ int rank_cmd(queue<string> &args) {
     read_info(in, info);
 
     auto ranking = get_ranking(in, info, count, radius, distance);
+    for (auto item : ranking) {
+        auto coord = get_coord(get_pixel(item.first));
+        cout << coord.first << " " << coord.second << " " << item.second << endl;
+    }
+
+    return 0;
+}
+
+int prank_cmd(queue<string> &args) {
+    string in_file;
+    int count = 5;
+    double distance = 0;
+
+    // コマンドライン引数をパース
+    while (!args.empty()) {
+        if (args.front() == "-n") {
+            args.pop();
+            if (args.empty()) {
+                show_usage();
+                return 1;
+            }
+            count = stoi(args.front());
+        } else if (args.front() == "-d") {
+            args.pop();
+            if (args.empty()) {
+                show_usage();
+                return 1;
+            }
+            distance = stof(args.front());
+        } else {
+            if (!in_file.empty()) {
+                show_usage();
+                return 1;
+            }
+            in_file = args.front();
+        }
+        args.pop();
+    }
+
+    if (in_file.empty()) {
+        cout << "入力ファイルが指定されていません" << endl;
+        return 1;
+    }
+
+    ifstream in(in_file, ios::in | ios::binary);
+    if (!in) {
+        cout << "入力ファイルが開けませんでした: " << in_file << endl;
+        return 1;
+    }
+
+    ifstream merged(MERGED_FILE, ios::in | ios::binary);
+    if (!merged) {
+        cout << "マージファイルが開けませんでした: " << MERGED_FILE << endl;
+        return 1;
+    }
+
+    Info info, merged_info;
+    read_info(in, info);
+    read_info(merged, merged_info);
+
+    auto ranking = get_prob_ranking(in, merged, info, merged_info, count, distance);
     for (auto item : ranking) {
         auto coord = get_coord(get_pixel(item.first));
         cout << coord.first << " " << coord.second << " " << item.second << endl;
@@ -384,8 +450,8 @@ int merge_cmd(queue<string> &args) {
 
 int image_cmd(queue<string> &args) {
     string in_file, out_file = "out.bmp";
-    vector<pair<float, float>> pos;
-    bool rainfall_color = false;
+    vector<pair<double, double>> pos;
+    bool ranking_color = false, rainfall_color = false;
 
     // コマンドライン引数をパース
     while (!args.empty()) {
@@ -402,10 +468,12 @@ int image_cmd(queue<string> &args) {
                 show_usage();
                 return 1;
             }
-            float lat = stof(args.front());
+            double lat = stof(args.front());
             args.pop();
-            float lon = stof(args.front());
+            double lon = stof(args.front());
             pos.emplace_back(lat, lon);
+        } else if (args.front() == "-r") {
+            ranking_color = true;
         } else if (args.front() == "-c") {
             rainfall_color = true;
         } else {
@@ -452,12 +520,23 @@ int image_cmd(queue<string> &args) {
         f = [&](int lv) {
             if (lv == 0) return Color("C0C0C0");
             if (lv == 1) return Color("FFFFFF");
-            float r = info.V == 2 ? 0 : (float)(lv - 2) / (info.V - 2);
+            double r = info.V == 2 ? 0 : (double)(lv - 2) / (info.V - 2);
             return Color::from_hsl(240 * (1 - r), 100, 50);
         };
     }
 
-    create_image(in, out_file, info, f, pos);
+    function<Color(int)> pos_color;
+    if (ranking_color && !pos.empty()) {
+        // グラデーションで色付け
+        pos_color = [&](int order) {
+            double r = (double)order / pos.size();
+            return Color::from_hsl(300, 100, 50 * (1 + r));
+        };
+    } else {
+        pos_color = [](int) { return Color::from_hsl(300, 100, 50); };
+    }
+
+    create_image(in, out_file, info, f, pos, pos_color);
     in.close();
 
     cout << "画像ファイルを出力しました: " << out_file << endl;
@@ -466,9 +545,9 @@ int image_cmd(queue<string> &args) {
 }
 
 int pimage_cmd(queue<string> &args) {
-    string in_file, out_file = "out.bmp", merged_file = "/home/yamashita/disk02/analyze/merged/merged.bin";
-    vector<pair<float, float>> pos;
-    bool use_population = false;
+    string in_file, out_file = "out.bmp";
+    vector<pair<double, double>> pos;
+    bool ranking_color = false;
 
     // コマンドライン引数をパース
     while (!args.empty()) {
@@ -479,25 +558,18 @@ int pimage_cmd(queue<string> &args) {
                 return 1;
             }
             out_file = args.front();
-        } else if (args.front() == "-m") {
-            args.pop();
-            if (args.empty()) {
-                show_usage();
-                return 1;
-            }
-            merged_file = args.front();
         } else if (args.front() == "-l") {
             args.pop();
             if (args.size() <= 1) {
                 show_usage();
                 return 1;
             }
-            float lat = stof(args.front());
+            double lat = stof(args.front());
             args.pop();
-            float lon = stof(args.front());
+            double lon = stof(args.front());
             pos.emplace_back(lat, lon);
-        } else if (args.front() == "-p") {
-            use_population = true;
+        } else if (args.front() == "-r") {
+            ranking_color = true;
         } else {
             if (!in_file.empty()) {
                 show_usage();
@@ -519,9 +591,9 @@ int pimage_cmd(queue<string> &args) {
         return 1;
     }
 
-    ifstream merged(merged_file, ios::in | ios::binary);
+    ifstream merged(MERGED_FILE, ios::in | ios::binary);
     if (!merged) {
-        cout << "マージファイルが開けませんでした: " << merged_file << endl;
+        cout << "マージファイルが開けませんでした: " << MERGED_FILE << endl;
         return 1;
     }
 
@@ -535,7 +607,18 @@ int pimage_cmd(queue<string> &args) {
         return Color::from_hsl(240 * (1 - r), 100, 50);
     };
 
-    create_prob_image(in, merged, out_file, info, merged_info, f, pos, use_population);
+    function<Color(int)> pos_color;
+    if (ranking_color && !pos.empty()) {
+        // グラデーションで色付け
+        pos_color = [&](int order) {
+            double r = (double)order / pos.size();
+            return Color::from_hsl(300, 100, 50 * (1 + r));
+        };
+    } else {
+        pos_color = [](int) { return Color::from_hsl(300, 100, 50); };
+    }
+
+    create_prob_image(in, merged, out_file, info, merged_info, f, pos, pos_color);
     in.close();
 
     cout << "画像ファイルを出力しました: " << out_file << endl;
@@ -563,6 +646,9 @@ int main(int argc, char *argv[]) {
     } else if (args.front() == "rank") {
         args.pop();
         return rank_cmd(args);
+    } else if (args.front() == "prank") {
+        args.pop();
+        return prank_cmd(args);
     } else if (args.front() == "convert") {
         args.pop();
         return convert_cmd(args);

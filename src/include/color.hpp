@@ -10,5 +10,5 @@ struct Color {
 
     Color(int _red, int _green, int _blue);
     Color(std::string code);
-    static Color from_hsl(float h, float s, float l);
+    static Color from_hsl(double h, double s, double l);
 };
