@@ -1,7 +1,10 @@
 #include "color.hpp"
 #include "util.hpp"
 #include <assert.h>
+#include <iomanip>
 #include <math.h>
+
+#define W2(v) setw(2) << setfill('0') << (int)v
 
 using namespace std;
 
@@ -35,4 +38,9 @@ Color Color::from_hsl(double h, double s, double l) {
     } else {
         return Color(max, min, min + (max - min) * (360 - h) / 60);
     }
+}
+
+std::ostream &operator<<(std::ostream &os, const Color &color) {
+    os << uppercase << hex << W2(color.red) << W2(color.green) << W2(color.blue) << std::dec;
+    return os;
 }

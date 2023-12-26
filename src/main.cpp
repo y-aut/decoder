@@ -342,7 +342,7 @@ int convert_cmd(queue<string> &args) {
     Info in_info, out_info;
     read_info(in, in_info);
 
-    auto f = [&](int lv) {
+    auto f = [threshold](int lv) {
         if (lv == 0) return 0;
         return lv >= threshold ? 2 : 1;
     };
@@ -420,7 +420,7 @@ int merge_cmd(queue<string> &args) {
         in_pos.push_back(in[i]->tellg());
     }
 
-    auto f = [&](int lv1, int lv2) {
+    auto f = [](int lv1, int lv2) {
         if (lv1 == 0 || lv2 == 0) return lv1 + lv2;
         return max(0, lv1 + lv2 - 1);
     };
@@ -504,7 +504,7 @@ int image_cmd(queue<string> &args) {
     if (rainfall_color) {
         // 降水量レベルを色に変換する
         int scale = pow_int(10, info.E);
-        f = [&](int lv) {
+        f = [&, scale](int lv) {
             if (lv == 0) return Color("C0C0C0");
             int value = info.get_value(lv);
             if (value == 0) return Color("FFFFFF");
@@ -602,7 +602,7 @@ int pimage_cmd(queue<string> &args) {
     read_info(merged, merged_info);
 
     // グラデーションで色付け
-    auto f = [&](double r) {
+    auto f = [](double r) {
         if (r < 0) return Color("C0C0C0");
         return Color::from_hsl(240 * (1 - r), 100, 50);
     };
