@@ -56,10 +56,11 @@ void draw_location(unsigned char img[], double latitude, double longitude, const
 
 void draw_population(unsigned char img[], const std::function<Color(double)> &color) {
     auto data = load_population();
-    auto max_p = max_element(data.begin(), data.end())->second;
+    auto max_p = max_element(data.begin(), data.end(), [](const pair<int, int> &p1, const pair<int, int> &p2) { return p1.second < p2.second; })->second;
+    auto max_logp = log(max_p);
 
     for (auto v : data) {
         auto pixel = get_pixel(v.first);
-        set_color(img, pixel.first, pixel.second, color((double)v.second / max_p));
+        set_color(img, pixel.first, pixel.second, color(log(v.second) / max_logp));
     }
 }
