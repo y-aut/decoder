@@ -250,13 +250,13 @@ unordered_map<int, double> get_prob(ifstream &in, ifstream &merged, const Info &
         if (values[item.first] == 0 || merged_values[item.first] == 0) continue;
         int m = merged_info.get_value(merged_values[item.first]);
         if (m == 0) continue;
-        int Ttt = info.get_value(values[item.first]);
-        int Tft = info.count - Ttt;
-        int Ttf = m - Ttt;
-        int Tff = DATA_COUNT - Ttt - Tft - Ttf;
+        int Tpp = info.get_value(values[item.first]);
+        int Tpn = info.count - Tpp;
+        int Tnp = m - Tpp;
+        int Tnn = DATA_COUNT - Tpp - Tpn - Tnp;
         double r = (double)m / DATA_COUNT;
         double alpha = r / (1 - r) * (1 - Pr) / Pr * Re;
-        res[item.first] = Ttt * log(Re) + Ttf * log(1 - Re) + Tft * log(alpha) + Tff * log(1 - alpha) + log(item.second);
+        res[item.first] = Tpp * log(Re) + Tnp * log(1 - Re) + Tpn * log(alpha) + Tnn * log(1 - alpha) + log(item.second);
     }
     return res;
 }
