@@ -46,3 +46,5 @@ void merge_search(std::vector<std::ifstream *> &in, const std::vector<Info> &in_
 void merge(std::vector<std::ifstream *> &in, std::ofstream &out, const std::vector<Info> &in_info, Info &out_info, const std::function<int(int, int)> &f);
 void create_image(std::ifstream &in, std::string out_file, const Info &info, const std::function<Color(int)> &color, const std::vector<std::pair<double, double>> &pos, const std::function<Color(int)> &pos_color);
 void create_prob_image(std::ifstream &in, std::ifstream &merged, std::string out_file, const Info &info, const Info &merged_info, const std::function<Color(double)> &color, const std::vector<std::pair<double, double>> &pos, const std::function<Color(int)> &pos_color);
+double get_cae(std::ifstream &in, std::ifstream &merged, const Info &info, const Info &merged_info, double latitude, double longitude);
+double get_pra(std::ifstream &in, std::ifstream &merged, const Info &info, const Info &merged_info, double percentage);

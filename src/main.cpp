@@ -47,6 +47,12 @@ pimage [-o OUT_FILE] [-l LATITUDE LONGITUDE] [-r] FILENAME
     ユーザーの所在地の確率からビットマップを作成する
     -l を指定すると，指定した地点に印をつける．複数指定可能
     -r を指定すると，複数地点を指定した場合にグラデーションで印をつける
+
+cae FILENAME LATITUDE LONGITUDE
+    指定した地点との距離の期待値を計算する
+
+pra [-p PERCENTAGE] FILENAME
+    PERCENTAGE に指定した値（デフォルトは 50）% を超える最小面積を求める
 )"
          << endl;
 }
@@ -626,6 +632,87 @@ int pimage_cmd(queue<string> &args) {
     return 0;
 }
 
+int cae_cmd(queue<string> &args) {
+    // コマンドライン引数をパース
+    if (args.size() != 3) {
+        show_usage();
+        return 1;
+    }
+
+    string in_file = args.front();
+    args.pop();
+    double latitude = stof(args.front());
+    args.pop();
+    double longitude = stof(args.front());
+    args.pop();
+
+    ifstream in(in_file, ios::in | ios::binary);
+    if (!in) {
+        cout << "入力ファイルが開けませんでした: " << in_file << endl;
+        return 1;
+    }
+
+    ifstream merged(MERGED_FILE, ios::in | ios::binary);
+    if (!merged) {
+        cout << "マージファイルが開けませんでした: " << MERGED_FILE << endl;
+        return 1;
+    }
+
+    Info info, merged_info;
+    read_info(in, info);
+    read_info(merged, merged_info);
+
+    auto result = get_cae(in, merged, info, merged_info, latitude, longitude);
+    cout << result << endl;
+
+    return 0;
+}
+
+int pra_cmd(queue<string> &args) {
+    string in_file;
+    double percentage = 50;
+
+    // コマンドライン引数をパース
+    while (!args.empty()) {
+        if (args.front() == "-p") {
+            args.pop();
+            if (args.empty()) {
+                show_usage();
+                return 1;
+            }
+            percentage = stof(args.front());
+        } else {
+            if (!in_file.empty() || args.empty()) {
+                show_usage();
+                return 1;
+            }
+            in_file = args.front();
+        }
+        args.pop();
+    }
+
+    ifstream in(in_file, ios::in | ios::binary);
+    if (!in) {
+        cout << "入力ファイルが開けませんでした: " << in_file << endl;
+        return 1;
+    }
+
+    ifstream merged(MERGED_FILE, ios::in | ios::binary);
+    if (!merged) {
+        cout << "マージファイルが開けませんでした: " << MERGED_FILE << endl;
+        return 1;
+    }
+
+    Info info, merged_info;
+    read_info(in, info);
+    read_info(merged, merged_info);
+
+    auto result = get_pra(in, merged, info, merged_info, percentage);
+    cout << result << endl;
+
+    return 0;
+}
+
 int main(int argc, char *argv[]) {
     cout << setprecision(10);
 
@@ -661,6 +748,12 @@ int main(int argc, char *argv[]) {
     } else if (args.front() == "pimage") {
         args.pop();
         return pimage_cmd(args);
+    } else if (args.front() == "cae") {
+        args.pop();
+        return cae_cmd(args);
+    } else if (args.front() == "pra") {
+        args.pop();
+        return pra_cmd(args);
     } else {
         show_usage();
         return 1;

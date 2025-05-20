@@ -1,5 +1,6 @@
 #include "process.hpp"
 #include "bitmap.hpp"
+#include "calc.hpp"
 #include "io.hpp"
 #include "map.hpp"
 #include "segment.hpp"
@@ -810,4 +811,46 @@ void create_prob_image(std::ifstream &in, std::ifstream &merged, std::string out
 
     save_bitmap(img, out_file, WIDTH, HEIGHT);
     delete[] img;
+}
+
+unordered_map<int, double> get_normalized_prob(std::ifstream &in, std::ifstream &merged, const Info &info, const Info &merged_info) {
+    auto logp = get_prob(in, merged, info, merged_info);
+    auto max_logp = max_element(logp.begin(), logp.end(), [](const pair<int, double> &a, const pair<int, double> &b) {
+                        return a.second < b.second;
+                    })->second;
+    unordered_map<int, double> p;
+    double sum = 0;
+    for (auto item : logp) {
+        p[item.first] = exp(item.second - max_logp);
+        sum += p[item.first];
+    }
+    for (auto item : p) {
+        p[item.first] /= sum;
+    }
+    return p;
+}
+
+double get_cae(std::ifstream &in, std::ifstream &merged, const Info &info, const Info &merged_info, double latitude, double longitude) {
+    auto p = get_normalized_prob(in, merged, info, merged_info);
+    double res = 0;
+    for (auto item : p) {
+        auto coord = get_coord(get_pixel(item.first));
+        res += haversine(latitude, longitude, coord.first, coord.second) * p[item.first];
+    }
+    return res;
+}
+
+double get_pra(std::ifstream &in, std::ifstream &merged, const Info &info, const Info &merged_info, double percentage) {
+    percentage /= 100;
+    auto p = get_normalized_prob(in, merged, info, merged_info);
+    vector<double> cpy;
+    for (auto item : p) cpy.push_back(item.second);
+    sort(cpy.begin(), cpy.end(), greater<double>());
+    double res = 0, sum = 0;
+    for (auto item : cpy) {
+        sum += item;
+        res += 1;
+        if (sum >= percentage) break;
+    }
+    return res;
 }

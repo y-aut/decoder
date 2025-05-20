@@ -1,5 +1,6 @@
 #include "calc.hpp"
 #include "util.hpp"
+#include <cmath>
 #include <iostream>
 
 int get_density(const std::unordered_map<int, int> &population, int index, float radius) {
@@ -39,4 +40,24 @@ int get_highest_density(const std::unordered_map<int, int> &population, float ra
     auto p = get_pixel(index);
     std::cout << p.first << ", " << p.second << std::endl;
     return ans;
+}
+
+// 度からラジアンへ変換
+double toRadians(double degree) {
+    return degree * M_PI / 180.0;
+}
+
+double haversine(double lat1, double lon1, double lat2, double lon2) {
+    double dLat = toRadians(lat2 - lat1);
+    double dLon = toRadians(lon2 - lon1);
+
+    lat1 = toRadians(lat1);
+    lat2 = toRadians(lat2);
+
+    double a = pow(sin(dLat / 2), 2) +
+               cos(lat1) * cos(lat2) * pow(sin(dLon / 2), 2);
+
+    double c = 2 * atan2(sqrt(a), sqrt(1 - a));
+
+    return EARTH_RADIUS_KM * c;
 }
