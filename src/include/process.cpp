@@ -389,7 +389,9 @@ void get_values(std::ifstream &in, std::ifstream &coord, std::ofstream &out, con
 }
 
 // ランキングを表示する
-std::vector<std::pair<int, double>> get_ranking(std::ifstream &in, const Info &info, int count, double radius, double distance) {
+std::vector<std::pair<int, double>> get_ranking(std::ifstream &in, const Info &info, int count, double radius, double distance, bool filter_zero) {
+    auto population = load_population();
+
     // 全ての点の値を計算する
     vector<int> values(SIZE, -1);
 
@@ -474,6 +476,9 @@ std::vector<std::pair<int, double>> get_ranking(std::ifstream &in, const Info &i
 
     // 順に取り出す
     for (auto item : average) {
+        if (filter_zero && (!population.count(item.first) || population[item.first] == 0)) {
+            continue;
+        }
         // result にある点から距離 distance 以内にないか
         auto p = get_pixel(item.first);
         bool exist = false;
@@ -727,12 +732,16 @@ void merge(std::vector<std::ifstream *> &in, std::ofstream &out, const std::vect
     write(out, 4, 0x37373737);
 }
 
-void create_image(std::ifstream &in, std::string out_file, const Info &info, const std::function<Color(int)> &color, const std::vector<std::pair<double, double>> &pos, const std::function<Color(int)> &pos_color) {
+void create_image(std::ifstream &in, std::string out_file, const Info &info, const std::function<Color(int)> &color, const std::vector<std::pair<double, double>> &pos, const std::function<Color(int)> &pos_color, bool filter_zero) {
+    auto population = load_population();
+
     auto img = new unsigned char[SIZE * 3];
     int index = 0;
 
     int in_bytes = info.bits / 8;
     int read_bytes = 0;
+
+    auto empty_color = color(0);
 
     Segment seg;
     int seg_len = 0;
@@ -747,7 +756,11 @@ void create_image(std::ifstream &in, std::string out_file, const Info &info, con
                 // seg を書き出す
                 auto c = color(seg.value);
                 for (int i = 0; i < seg.length; i++) {
-                    set_color(img, get_pixel(index), c);
+                    if (filter_zero && (!population.count(index) || population[index] == 0)) {
+                        set_color(img, get_pixel(index), empty_color);
+                    } else {
+                        set_color(img, get_pixel(index), c);
+                    }
                     index++;
                 }
             }

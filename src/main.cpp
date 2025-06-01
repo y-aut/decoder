@@ -23,9 +23,10 @@ values [-o OUT_FILE] FILENAME COORDINATES_FILE
     ファイルで指定した地点の雨量をすべて取得する
     COORDINATES_FILE には，行ごとに緯度・経度をスペース区切りで記入したファイルを指定する
 
-rank [-n COUNT] [-r RADIUS] [-d DISTANCE] FILENAME
+rank [-n COUNT] [-r RADIUS] [-d DISTANCE] [-f] FILENAME
     値が高い地点を順に指定した数だけ出力する
     指定した距離 (px) 以内の 2 点はランキング中に含まれない
+    -f を指定すると，人口が 0 の地点は除外する
 
 prank [-n COUNT] [-d DISTANCE] FILENAME
     ユーザーの所在地の確率が高い地点を順に指定した数だけ出力する
@@ -37,10 +38,11 @@ convert [-t THRESHOLD] [-o OUT_FILE] FILENAME
 merge [-o OUT_FILE] FILENAME1 FILENAME2
     ファイルをマージする
 
-image [-o OUT_FILE] [-l LATITUDE LONGITUDE] [-r] [-c] FILENAME
+image [-o OUT_FILE] [-l LATITUDE LONGITUDE] [-r] [-f] [-c] FILENAME
     ビットマップを作成する
     -l を指定すると，指定した地点に印をつける．複数指定可能
     -r を指定すると，複数地点を指定した場合にグラデーションで印をつける
+    -f を指定すると，人口が 0 の地点は除外する
     -c を指定すると，降水量に基づいた色分けを行う
 
 pimage [-o OUT_FILE] [-l LATITUDE LONGITUDE] [-r] FILENAME
@@ -180,6 +182,7 @@ int rank_cmd(queue<string> &args) {
     string in_file;
     int count = 5;
     double radius = 0, distance = 0;
+    bool filter_zero = false;
 
     // コマンドライン引数をパース
     while (!args.empty()) {
@@ -204,6 +207,8 @@ int rank_cmd(queue<string> &args) {
                 return 1;
             }
             distance = stof(args.front());
+        } else if (args.front() == "-f") {
+            filter_zero = true;
         } else {
             if (!in_file.empty()) {
                 show_usage();
@@ -228,7 +233,7 @@ int rank_cmd(queue<string> &args) {
     Info info;
     read_info(in, info);
 
-    auto ranking = get_ranking(in, info, count, radius, distance);
+    auto ranking = get_ranking(in, info, count, radius, distance, filter_zero);
     for (auto item : ranking) {
         auto coord = get_coord(get_pixel(item.first));
         cout << coord.first << " " << coord.second << " " << item.second << endl;
@@ -457,7 +462,7 @@ int merge_cmd(queue<string> &args) {
 int image_cmd(queue<string> &args) {
     string in_file, out_file = "out.bmp";
     vector<pair<double, double>> pos;
-    bool ranking_color = false, rainfall_color = false;
+    bool ranking_color = false, rainfall_color = false, filter_zero = false;
 
     // コマンドライン引数をパース
     while (!args.empty()) {
@@ -480,6 +485,8 @@ int image_cmd(queue<string> &args) {
             pos.emplace_back(lat, lon);
         } else if (args.front() == "-r") {
             ranking_color = true;
+        } else if (args.front() == "-f") {
+            filter_zero = true;
         } else if (args.front() == "-c") {
             rainfall_color = true;
         } else {
@@ -542,7 +549,7 @@ int image_cmd(queue<string> &args) {
         pos_color = [](int) { return Color::from_hsl(300, 100, 50); };
     }
 
-    create_image(in, out_file, info, f, pos, pos_color);
+    create_image(in, out_file, info, f, pos, pos_color, filter_zero);
     in.close();
 
     cout << "画像ファイルを出力しました: " << out_file << endl;
